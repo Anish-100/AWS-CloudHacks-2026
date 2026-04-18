@@ -29,7 +29,7 @@ deploy_lambda() {
 
 # Deploy pipeline as Recommendations-handler
 echo "Packaging pipeline..."
-zip -j /tmp/Recommendations-handler.zip "$(dirname "$0")/Recommendations-handler.py"
+zip -j /tmp/Recommendations-handler.zip "$(dirname "$0")/lambda/Recommendations-handler.py"
 if aws lambda get-function --function-name Recommendations-handler --region $REGION &>/dev/null; then
     aws lambda update-function-code \
         --function-name Recommendations-handler \

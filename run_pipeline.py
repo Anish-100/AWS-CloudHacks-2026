@@ -5,7 +5,7 @@ import importlib.util
 
 spec = importlib.util.spec_from_file_location(
     "Recommendations-handler",
-    "/workshop/AWS-CloudHacks-2026/backend/Recommendations-handler.py"
+    "/workshop/AWS-CloudHacks-2026/backend/lambda/Recommendations-handler.py"
 )
 pipeline = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pipeline)
