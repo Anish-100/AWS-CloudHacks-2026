@@ -1,32 +1,57 @@
 #!/bin/bash
 set -e
 
-REGION="us-east-1"
-STACK="puran-dev"
+REGION="us-west-2"
+ROLE="arn:aws:iam::133177652556:role/LambdaCSVIngestionRole"
+LAMBDA_DIR="$(dirname "$0")/lambda"
 
-# 1. deploy infra (safe to re-run, skips if nothing changed)
-echo "deploying infra..."
-aws cloudformation deploy \
-  --template-file ../cloudformation.yaml \
-  --stack-name $STACK \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --region $REGION
+deploy_lambda() {
+    local name=$1
+    local file=$2
+    echo "Deploying $name..."
+    zip -j /tmp/${name}.zip ${LAMBDA_DIR}/${file}
+    if aws lambda get-function --function-name $name --region $REGION &>/dev/null; then
+        aws lambda update-function-code \
+            --function-name $name \
+            --zip-file fileb:///tmp/${name}.zip \
+            --region $REGION --query 'LastModified' --output text
+    else
+        aws lambda create-function \
+            --function-name $name \
+            --runtime python3.12 \
+            --handler pipeline.lambda_handler \
+            --role $ROLE \
+            --zip-file fileb:///tmp/${name}.zip \
+            --timeout 30 \
+            --region $REGION --query 'FunctionName' --output text
+    fi
+}
 
-# 2. package code
-echo "packaging..."
-rm -rf package deployment.zip
-pip install -r requirements.txt -t package/ -q
-cp main.py goals.py transactions.py csv_processor.py package/
-cd package && zip -r ../deployment.zip . -q && cd ..
+# Deploy pipeline as Recommendations-handler
+echo "Packaging pipeline..."
+zip -j /tmp/Recommendations-handler.zip "$(dirname "$0")/Recommendations-handler.py"
+if aws lambda get-function --function-name Recommendations-handler --region $REGION &>/dev/null; then
+    aws lambda update-function-code \
+        --function-name Recommendations-handler \
+        --zip-file fileb:///tmp/Recommendations-handler.zip \
+        --region $REGION --query 'LastModified' --output text
+else
+    aws lambda create-function \
+        --function-name Recommendations-handler \
+        --runtime python3.12 \
+        --handler pipeline.lambda_handler \
+        --role $ROLE \
+        --zip-file fileb:///tmp/Recommendations-handler.zip \
+        --timeout 30 \
+        --region $REGION --query 'FunctionName' --output text
+fi
 
-# 3. push to both lambdas
-echo "deploying lambdas..."
-aws lambda update-function-code --function-name puran-api-dev           --zip-file fileb://deployment.zip --region $REGION
-aws lambda update-function-code --function-name puran-csv-processor-dev --zip-file fileb://deployment.zip --region $REGION
+deploy_lambda "GetGoals-handler"              "GetGoals-handler.py"
+deploy_lambda "FinancialTransactions-handler" "FinancialTransactions-handler.py"
+deploy_lambda "UserGoals-handler"             "UserGoals-handler.py"
 
-# 4. print the API URL for the frontend person
 echo ""
-echo "API URL:"
-aws cloudformation describe-stacks --stack-name $STACK \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
-  --output text --region $REGION
+echo "All Lambdas deployed."
+echo ""
+echo "Test recommendations:"
+echo "  aws lambda invoke --function-name Recommendations-handler --region $REGION --cli-binary-format raw-in-base64-out --payload '{\"body\":\"{\\\"user_id\\\":\\\"demo\\\",\\\"monthly_income\\\":4500}\"}' /tmp/out.json && cat /tmp/out.json"
