@@ -1,9 +1,24 @@
 :root {
-  color: #1F3D2B;
-  background: #121417;
+  --color-charcoal: #121417;
+  --color-deep-green: #1f3d2b;
+  --color-panel: #181d1b;
+  --color-panel-soft: #202822;
+  --color-border: #304238;
+  --color-text: #edf4ee;
+  --color-muted: #a9b8ad;
+  --color-muted-strong: #cad8cf;
+  --color-urgency: #ff6b2c;
+  --color-risk: #d7263d;
+  --color-progress: #2ecc71;
+  --color-gold: #e6b800;
+  --shadow-panel: 0 18px 50px rgba(0, 0, 0, 0.24);
+  color: var(--color-text);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(46, 204, 113, 0.08), transparent 34%),
+    linear-gradient(135deg, var(--color-charcoal) 0%, #17221b 48%, var(--color-deep-green) 100%);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+    Inter, "SF Pro Display", "SF Pro Text", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -16,6 +31,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    radial-gradient(circle at 80% 10%, rgba(230, 184, 0, 0.08), transparent 28%),
+    linear-gradient(135deg, var(--color-charcoal) 0%, #17221b 48%, var(--color-deep-green) 100%);
 }
 
 .fire-trail {
@@ -35,16 +53,16 @@ body {
   pointer-events: none;
   background: radial-gradient(
     circle,
-    #fff7ad 0%,
-    #ffc247 25%,
-    #ff6b1a 55%,
-    #b91c1c 78%,
-    rgba(185, 28, 28, 0) 100%
+    #fff3a1 0%,
+    var(--color-gold) 24%,
+    var(--color-urgency) 56%,
+    var(--color-risk) 78%,
+    rgba(215, 38, 61, 0) 100%
   );
   box-shadow:
-    0 0 10px rgba(255, 194, 71, 0.85),
-    0 0 22px rgba(255, 107, 26, 0.6),
-    0 0 34px rgba(185, 28, 28, 0.35);
+    0 0 10px rgba(230, 184, 0, 0.85),
+    0 0 22px rgba(255, 107, 44, 0.6),
+    0 0 34px rgba(215, 38, 61, 0.35);
   mix-blend-mode: screen;
   will-change: left, top, transform, opacity;
 }
@@ -63,22 +81,23 @@ select {
 
 button {
   min-height: 40px;
-  border: 1px solid #cad3c2;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 0 14px;
-  background: #ffffff;
-  color: #18231d;
+  background: #202822;
+  color: var(--color-text);
   cursor: pointer;
 }
 
 button:hover {
-  border-color: #557766;
+  border-color: var(--color-progress);
 }
 
 .primary {
-  border-color: #1F3D2B;
-  background: #1F3D2B;
-  color: #121417;
+  border-color: var(--color-progress);
+  background: var(--color-progress);
+  color: #06140b;
+  font-weight: 800;
 }
 
 .ghost {
@@ -86,7 +105,7 @@ button:hover {
 }
 
 .danger {
-  color: #9b2f2f;
+  color: var(--color-urgency);
 }
 
 .full-width {
@@ -118,6 +137,8 @@ button:hover {
 
 .topbar h1 {
   font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .topbar__meta,
@@ -134,10 +155,11 @@ button:hover {
 .topbar__meta span,
 .forest-stats span,
 .risk-row span {
-  border: 1px solid #cad3c2;
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 7px 10px;
-  background: #ffffff;
+  background: rgba(18, 20, 23, 0.72);
+  color: var(--color-muted-strong);
   font-size: 13px;
 }
 
@@ -162,9 +184,10 @@ button:hover {
 .goal-form,
 .goals-dashboard,
 .quicksight-panel {
-  border: 1px solid #d8decf;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: rgba(24, 29, 27, 0.92);
+  box-shadow: var(--shadow-panel);
   padding: 18px;
 }
 
@@ -174,11 +197,13 @@ button:hover {
 
 .section-heading h2 {
   font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
 }
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #557766;
+  color: var(--color-gold);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -194,13 +219,13 @@ button:hover {
 }
 
 .upload-panel.dragging {
-  border-color: #174f3f;
-  background: #eef5ee;
+  border-color: var(--color-progress);
+  background: rgba(46, 204, 113, 0.1);
 }
 
 .upload-panel p,
 .empty-state {
-  color: #607066;
+  color: var(--color-muted);
   line-height: 1.5;
 }
 
@@ -215,13 +240,21 @@ button:hover {
   line-height: 1.45;
 }
 
+.risk-row span {
+  border-color: rgba(255, 107, 44, 0.34);
+  color: var(--color-urgency);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .forest-panel {
   position: relative;
   min-height: 430px;
   overflow: hidden;
   border-radius: 8px;
-  background: #20382e;
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--color-charcoal), var(--color-deep-green));
+  color: var(--color-text);
+  box-shadow: var(--shadow-panel);
 }
 
 .forest-image {
@@ -233,7 +266,7 @@ button:hover {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: saturate(0.9) brightness(0.58);
+  filter: saturate(0.75) brightness(0.44);
 }
 
 .forest-content {
@@ -245,12 +278,13 @@ button:hover {
 }
 
 .forest-content .eyebrow {
-  color: #b6e3c3;
+  color: var(--color-gold);
 }
 
 .forest-content h2 {
   max-width: 520px;
   font-size: 42px;
+  letter-spacing: -0.025em;
 }
 
 .forest-ground {
@@ -261,7 +295,10 @@ button:hover {
   min-height: 150px;
   border-radius: 8px;
   padding: 14px;
-  background: rgba(10, 25, 18, 0.55);
+  background:
+    linear-gradient(180deg, rgba(31, 61, 43, 0.4), rgba(18, 20, 23, 0.8)),
+    rgba(18, 20, 23, 0.72);
+  border: 1px solid rgba(202, 216, 207, 0.12);
 }
 
 .tree {
@@ -270,26 +307,28 @@ button:hover {
   height: 54px;
   border-radius: 8px;
   font-size: 32px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(237, 244, 238, 0.08);
 }
 
 .tree.achieved {
-  color: #83d27c;
+  color: var(--color-progress);
 }
 
 .tree.pending {
-  color: #cde889;
+  color: var(--color-gold);
   font-size: 26px;
 }
 
 .tree.failed {
-  color: #ef9b83;
+  color: var(--color-urgency);
+  text-shadow: 0 0 18px rgba(255, 107, 44, 0.82);
 }
 
 .forest-stats span {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  border-color: rgba(237, 244, 238, 0.2);
+  background: rgba(18, 20, 23, 0.66);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .goal-form,
@@ -301,7 +340,7 @@ button:hover {
 label {
   display: grid;
   gap: 6px;
-  color: #405247;
+  color: var(--color-muted-strong);
   font-size: 13px;
   font-weight: 700;
 }
@@ -310,11 +349,22 @@ input,
 select {
   width: 100%;
   min-height: 42px;
-  border: 1px solid #cad3c2;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 0 12px;
-  background: #ffffff;
-  color: #18231d;
+  background: #101412;
+  color: var(--color-text);
+}
+
+input:focus,
+select:focus {
+  border-color: var(--color-progress);
+  outline: 2px solid rgba(46, 204, 113, 0.18);
+}
+
+input[type="number"] {
+  font-family: "Roboto Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .form-grid {
@@ -330,16 +380,16 @@ select {
 
 .goal-group + .goal-group {
   padding-top: 8px;
-  border-top: 1px solid #e5e9df;
+  border-top: 1px solid var(--color-border);
 }
 
 .goal-card {
   display: grid;
   gap: 12px;
-  border: 1px solid #dfe5d8;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 14px;
-  background: #fbfcf8;
+  background: var(--color-panel-soft);
 }
 
 .goal-card__header,
@@ -351,12 +401,13 @@ select {
 
 .goal-card__footer {
   align-items: center;
-  color: #607066;
+  color: var(--color-muted);
   font-size: 13px;
 }
 
 .goal-card h3 {
   font-size: 17px;
+  letter-spacing: -0.01em;
 }
 
 .status-badge {
@@ -369,23 +420,26 @@ select {
 }
 
 .status-badge.pending {
-  background: #fff2c7;
-  color: #7b5900;
+  background: rgba(230, 184, 0, 0.16);
+  color: var(--color-gold);
 }
 
 .status-badge.achieved {
-  background: #dff4de;
-  color: #245f2b;
+  background: rgba(46, 204, 113, 0.15);
+  color: var(--color-progress);
 }
 
 .status-badge.failed {
-  background: #f8dddd;
-  color: #8f2d2d;
+  background: rgba(255, 107, 44, 0.16);
+  color: var(--color-urgency);
+  box-shadow: 0 0 18px rgba(255, 107, 44, 0.22);
 }
 
 .progress-row {
   justify-content: space-between;
-  color: #405247;
+  color: var(--color-muted-strong);
+  font-family: "Roboto Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   font-weight: 800;
 }
@@ -394,13 +448,13 @@ select {
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e4e9dc;
+  background: rgba(202, 216, 207, 0.16);
 }
 
 .progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: #2f8f66;
+  background: linear-gradient(90deg, var(--color-progress), var(--color-gold));
 }
 
 .quicksight-panel iframe,
@@ -409,14 +463,14 @@ select {
   height: 420px;
   border: 0;
   border-radius: 8px;
-  background: #eef1ea;
+  background: #101412;
 }
 
 .quicksight-placeholder {
   display: grid;
   place-items: center;
   padding: 18px;
-  color: #607066;
+  color: var(--color-muted);
   text-align: center;
 }
 
