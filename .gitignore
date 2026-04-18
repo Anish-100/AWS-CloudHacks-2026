@@ -1,7 +1,7 @@
 lib/
 venv/
 bin
-.env/
+**/.env
 pyvenv.cfg
 **/.DS_Store
 node_modules/

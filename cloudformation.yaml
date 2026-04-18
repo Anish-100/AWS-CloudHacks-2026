@@ -63,50 +63,7 @@ Resources:
       SourceAccount: !Ref AWS::AccountId
 
   # ── DynamoDB ─────────────────────────────────────────────────────────────────
-  TransactionsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub puran-transactions-${Environment}
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: transactionId
-          AttributeType: S
-        - AttributeName: transactionDate
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-        - AttributeName: transactionId
-          KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: userId-date-index
-          KeySchema:
-            - AttributeName: userId
-              KeyType: HASH
-            - AttributeName: transactionDate
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-      StreamSpecification:
-        StreamViewType: NEW_IMAGE   # enables future DynamoDB Streams → export trigger
-
-  GoalsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub puran-goals-${Environment}
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: goalId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-        - AttributeName: goalId
-          KeyType: RANGE
+  # Tables already created by teammate — referenced by name only
 
   # ── IAM ──────────────────────────────────────────────────────────────────────
   LambdaExecutionRole:
@@ -149,9 +106,15 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:BatchWriteItem
                 Resource:
-                  - !GetAtt TransactionsTable.Arn
-                  - !Sub ${TransactionsTable.Arn}/index/*
-                  - !GetAtt GoalsTable.Arn
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/FinancialTransactions
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/FinancialTransactions/index/*
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserGoals
+              # Lambda: invoke teammate DynamoDB handler functions
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:FinancialTransactions-handler
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:UserGoals-handler
               # Bedrock: invoke Claude 3 Haiku
               - Effect: Allow
                 Action:
@@ -180,11 +143,11 @@ Resources:
       MemorySize: 512
       Environment:
         Variables:
-          TRANSACTIONS_TABLE: !Ref TransactionsTable
+          TRANSACTIONS_LAMBDA: FinancialTransactions-handler
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           DATA_BUCKET: !Sub puran-data-${Environment}-${AWS::AccountId}
           ENVIRONMENT: !Ref Environment
-          USER_ID: demo-user   # hardcoded until auth is added
+          USER_ID: demo-user
       Code:
         ZipFile: |
           # Placeholder — deploy via: aws lambda update-function-code --zip-file fileb://deployment.zip
@@ -203,8 +166,8 @@ Resources:
       MemorySize: 256
       Environment:
         Variables:
-          TRANSACTIONS_TABLE: !Ref TransactionsTable
-          GOALS_TABLE: !Ref GoalsTable
+          TRANSACTIONS_LAMBDA: FinancialTransactions-handler
+          GOALS_LAMBDA: UserGoals-handler
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           DATA_BUCKET: !Sub puran-data-${Environment}-${AWS::AccountId}
           QUICKSIGHT_ACCOUNT_ID: !Ref AWS::AccountId
@@ -309,15 +272,11 @@ Outputs:
 
   TransactionsTableName:
     Description: DynamoDB transactions table
-    Value: !Ref TransactionsTable
-    Export:
-      Name: !Sub puran-transactions-table-${Environment}
+    Value: FinancialTransactions
 
   GoalsTableName:
     Description: DynamoDB goals table
-    Value: !Ref GoalsTable
-    Export:
-      Name: !Sub puran-goals-table-${Environment}
+    Value: UserGoals
 
   CsvProcessorFunctionArn:
     Description: CSV processor Lambda ARN
