@@ -2,7 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Puran — Short-Term Financial Goal Tracker
   AWS CloudHacks 2026 @ UCI
-  Stack: S3 | Lambda | DynamoDB | API Gateway | Bedrock | QuickSight (manual setup)
+  Architecture: API Gateway → per-endpoint Lambdas → DynamoDB (existing tables) + Bedrock + S3
+  Frontend hosted on Amplify (configured separately via console).
 
 Parameters:
   Environment:
@@ -12,7 +13,6 @@ Parameters:
   BedrockModelId:
     Type: String
     Default: anthropic.claude-3-haiku-20240307-v1:0
-    Description: Bedrock model used for categorization and recommendations
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RESOURCES
@@ -20,10 +20,8 @@ Parameters:
 Resources:
 
   # ── S3 ──────────────────────────────────────────────────────────────────────
-  # One bucket: raw/ prefix for incoming CSVs, processed/ prefix for QuickSight
   FinancialDataBucket:
     Type: AWS::S3::Bucket
-    DependsOn: CsvProcessorInvokePermission
     Properties:
       BucketName: !Sub puran-data-${Environment}-${AWS::AccountId}
       CorsConfiguration:
@@ -38,32 +36,13 @@ Resources:
             Status: Enabled
             Prefix: raw/
             ExpirationInDays: 7
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: raw/
-                  - Name: suffix
-                    Value: .csv
-            Function: !GetAtt CsvProcessorFunction.Arn
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
 
-  CsvProcessorInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt CsvProcessorFunction.Arn
-      Principal: s3.amazonaws.com
-      SourceAccount: !Ref AWS::AccountId
-
   # ── DynamoDB ─────────────────────────────────────────────────────────────────
-  # Tables already created by teammate — referenced by name only
+  # Tables (FinancialTransactions, UserGoals, Suggestions) managed by teammate
 
   # ── IAM ──────────────────────────────────────────────────────────────────────
   LambdaExecutionRole:
@@ -84,18 +63,15 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # S3: read raw uploads, write processed exports
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:GeneratePresignedUrl
                 Resource: !Sub arn:aws:s3:::puran-data-${Environment}-${AWS::AccountId}/*
-              # S3: list bucket (needed for pre-signed URL generation)
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !Sub arn:aws:s3:::puran-data-${Environment}-${AWS::AccountId}
-              # DynamoDB: full CRUD on both tables
               - Effect: Allow
                 Action:
                   - dynamodb:PutItem
@@ -109,128 +85,403 @@ Resources:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/FinancialTransactions
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/FinancialTransactions/index/*
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserGoals
-              # Lambda: invoke teammate DynamoDB handler functions
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Suggestions
               - Effect: Allow
-                Action: lambda:InvokeFunction
-                Resource:
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:FinancialTransactions-handler
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:UserGoals-handler
-              # Bedrock: invoke Claude 3 Haiku
-              - Effect: Allow
-                Action:
-                  - bedrock:InvokeModel
+                Action: bedrock:InvokeModel
                 Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0
-              # QuickSight: generate embedded dashboard URLs
               - Effect: Allow
                 Action:
                   - quicksight:GenerateEmbedUrlForAnonymousUser
                   - quicksight:GenerateEmbedUrlForRegisteredUser
-                  - quicksight:GetDashboardEmbedUrl
                 Resource: '*'
 
-  # ── Lambda Functions ──────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────────────────
+  # LAMBDA FUNCTIONS
+  # Each Lambda is placeholder — deploy real code via `aws lambda update-function-code`
+  # ─────────────────────────────────────────────────────────────────────────────
 
-  # Triggered by S3 upload: parses CSV, calls Bedrock for specs, writes to DynamoDB,
-  # then exports enriched data back to S3 processed/ for QuickSight SPICE ingestion.
-  CsvProcessorFunction:
+  UploadFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub puran-csv-processor-${Environment}
+      FunctionName: !Sub puran-upload-${Environment}
       Runtime: python3.12
-      Handler: csv_processor.handler
+      Handler: upload.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout: 300
+      Timeout: 60
       MemorySize: 512
       Environment:
         Variables:
-          TRANSACTIONS_LAMBDA: FinancialTransactions-handler
-          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          TRANSACTIONS_TABLE: FinancialTransactions
           DATA_BUCKET: !Sub puran-data-${Environment}-${AWS::AccountId}
-          ENVIRONMENT: !Ref Environment
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
           USER_ID: demo-user
       Code:
         ZipFile: |
-          # Placeholder — deploy via: aws lambda update-function-code --zip-file fileb://deployment.zip
           def handler(event, context):
-              return {'statusCode': 200, 'body': 'placeholder'}
+              return {"statusCode": 200, "body": "placeholder:upload"}
 
-  # FastAPI app wrapped with Mangum. Handles all REST routes.
-  FastApiFunction:
+  UploadGoalFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub puran-api-${Environment}
+      FunctionName: !Sub puran-upload-goal-${Environment}
       Runtime: python3.12
-      Handler: main.handler   # main.py exports handler = Mangum(app)
+      Handler: upload_goal.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          GOALS_TABLE: UserGoals
+          USER_ID: demo-user
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "placeholder:upload-goal"}
+
+  CategorizeGoalFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub puran-categorize-goal-${Environment}
+      Runtime: python3.12
+      Handler: categorize_goal.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 30
       MemorySize: 256
       Environment:
         Variables:
-          TRANSACTIONS_LAMBDA: FinancialTransactions-handler
-          GOALS_LAMBDA: UserGoals-handler
+          GOALS_TABLE: UserGoals
           BEDROCK_MODEL_ID: !Ref BedrockModelId
-          DATA_BUCKET: !Sub puran-data-${Environment}-${AWS::AccountId}
-          QUICKSIGHT_ACCOUNT_ID: !Ref AWS::AccountId
-          QUICKSIGHT_NAMESPACE: default
-          ENVIRONMENT: !Ref Environment
           USER_ID: demo-user
       Code:
         ZipFile: |
-          # Placeholder — deploy via: aws lambda update-function-code --zip-file fileb://deployment.zip
           def handler(event, context):
-              return {'statusCode': 200, 'body': '{"message":"placeholder"}'}
+              return {"statusCode": 200, "body": "placeholder:categorize-goal"}
 
-  # ── API Gateway ───────────────────────────────────────────────────────────────
+  GetGoalsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub puran-get-goals-${Environment}
+      Runtime: python3.12
+      Handler: get_goals.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          GOALS_TABLE: UserGoals
+          USER_ID: demo-user
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "placeholder:get-goals"}
+
+  GetUserDataFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub puran-get-user-data-${Environment}
+      Runtime: python3.12
+      Handler: get_user_data.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 15
+      MemorySize: 256
+      Environment:
+        Variables:
+          TRANSACTIONS_TABLE: FinancialTransactions
+          USER_ID: demo-user
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "placeholder:get-user-data"}
+
+  GetSuggestionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub puran-get-suggestions-${Environment}
+      Runtime: python3.12
+      Handler: get_suggestions.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          SUGGESTIONS_TABLE: Suggestions
+          USER_ID: demo-user
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "placeholder:get-suggestions"}
+
+  PostSuggestionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub puran-post-suggestion-${Environment}
+      Runtime: python3.12
+      Handler: post_suggestion.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          SUGGESTIONS_TABLE: Suggestions
+          USER_ID: demo-user
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "placeholder:post-suggestion"}
+
+  GenerateSuggestionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub puran-generate-suggestions-${Environment}
+      Runtime: python3.12
+      Handler: generate_suggestions.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          TRANSACTIONS_TABLE: FinancialTransactions
+          GOALS_TABLE: UserGoals
+          SUGGESTIONS_TABLE: Suggestions
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          USER_ID: demo-user
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "placeholder:generate-suggestions"}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # API GATEWAY
+  # One REST API. Each path routes to its dedicated Lambda via AWS_PROXY.
+  # ─────────────────────────────────────────────────────────────────────────────
+
   PuranApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: !Sub puran-api-${Environment}
-      Description: Puran Financial Goal Tracker REST API
       EndpointConfiguration:
         Types: [REGIONAL]
 
-  # Catch-all proxy resource: forwards every path+method to FastAPI Lambda
-  ProxyResource:
+  # /upload ────────────────────────────────────────────────────────────────────
+  UploadResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref PuranApi
       ParentId: !GetAtt PuranApi.RootResourceId
-      PathPart: '{proxy+}'
+      PathPart: upload
 
-  ProxyMethod:
+  UploadMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PuranApi
-      ResourceId: !Ref ProxyResource
-      HttpMethod: ANY
-      AuthorizationType: NONE   # no auth for demo
-      RequestParameters:
-        method.request.path.proxy: true
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FastApiFunction.Arn}/invocations
-        CacheKeyParameters:
-          - method.request.path.proxy
-
-  # Also handle requests to the root path
-  RootMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PuranApi
-      ResourceId: !GetAtt PuranApi.RootResourceId
-      HttpMethod: ANY
+      ResourceId: !Ref UploadResource
+      HttpMethod: POST
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FastApiFunction.Arn}/invocations
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadFunction.Arn}/invocations
 
+  UploadInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt UploadFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/POST/upload
+
+  # /goals ─────────────────────────────────────────────────────────────────────
+  GoalsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PuranApi
+      ParentId: !GetAtt PuranApi.RootResourceId
+      PathPart: goals
+
+  GoalsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PuranApi
+      ResourceId: !Ref GoalsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetGoalsFunction.Arn}/invocations
+
+  GoalsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PuranApi
+      ResourceId: !Ref GoalsResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadGoalFunction.Arn}/invocations
+
+  GetGoalsInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt GetGoalsFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/GET/goals
+
+  UploadGoalInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt UploadGoalFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/POST/goals
+
+  # /goals/categorize ──────────────────────────────────────────────────────────
+  GoalsCategorizeResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PuranApi
+      ParentId: !Ref GoalsResource
+      PathPart: categorize
+
+  GoalsCategorizeMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PuranApi
+      ResourceId: !Ref GoalsCategorizeResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CategorizeGoalFunction.Arn}/invocations
+
+  CategorizeGoalInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt CategorizeGoalFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/POST/goals/categorize
+
+  # /user-data ─────────────────────────────────────────────────────────────────
+  UserDataResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PuranApi
+      ParentId: !GetAtt PuranApi.RootResourceId
+      PathPart: user-data
+
+  UserDataMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PuranApi
+      ResourceId: !Ref UserDataResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetUserDataFunction.Arn}/invocations
+
+  GetUserDataInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt GetUserDataFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/GET/user-data
+
+  # /suggestions ───────────────────────────────────────────────────────────────
+  SuggestionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PuranApi
+      ParentId: !GetAtt PuranApi.RootResourceId
+      PathPart: suggestions
+
+  SuggestionsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PuranApi
+      ResourceId: !Ref SuggestionsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetSuggestionsFunction.Arn}/invocations
+
+  SuggestionsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PuranApi
+      ResourceId: !Ref SuggestionsResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PostSuggestionFunction.Arn}/invocations
+
+  GetSuggestionsInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt GetSuggestionsFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/GET/suggestions
+
+  PostSuggestionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PostSuggestionFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/POST/suggestions
+
+  # /suggestions/generate ──────────────────────────────────────────────────────
+  SuggestionsGenerateResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PuranApi
+      ParentId: !Ref SuggestionsResource
+      PathPart: generate
+
+  SuggestionsGenerateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PuranApi
+      ResourceId: !Ref SuggestionsGenerateResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateSuggestionsFunction.Arn}/invocations
+
+  GenerateSuggestionsInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt GenerateSuggestionsFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/GET/suggestions/generate
+
+  # ── Deployment + stage ───────────────────────────────────────────────────────
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - ProxyMethod
-      - RootMethod
+      - UploadMethod
+      - GoalsGetMethod
+      - GoalsPostMethod
+      - GoalsCategorizeMethod
+      - UserDataMethod
+      - SuggestionsGetMethod
+      - SuggestionsPostMethod
+      - SuggestionsGenerateMethod
     Properties:
       RestApiId: !Ref PuranApi
 
@@ -246,14 +497,6 @@ Resources:
           ThrottlingBurstLimit: 100
           ThrottlingRateLimit: 50
 
-  FastApiInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt FastApiFunction.Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PuranApi}/*/*
-
 # ─────────────────────────────────────────────────────────────────────────────
 # OUTPUTS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -265,23 +508,16 @@ Outputs:
       Name: !Sub puran-api-endpoint-${Environment}
 
   DataBucketName:
-    Description: S3 bucket for CSV uploads and QuickSight exports
     Value: !Sub puran-data-${Environment}-${AWS::AccountId}
-    Export:
-      Name: !Sub puran-data-bucket-${Environment}
 
-  TransactionsTableName:
-    Description: DynamoDB transactions table
-    Value: FinancialTransactions
-
-  GoalsTableName:
-    Description: DynamoDB goals table
-    Value: UserGoals
-
-  CsvProcessorFunctionArn:
-    Description: CSV processor Lambda ARN
-    Value: !GetAtt CsvProcessorFunction.Arn
-
-  FastApiFunctionArn:
-    Description: FastAPI Lambda ARN
-    Value: !GetAtt FastApiFunction.Arn
+  LambdaFunctions:
+    Description: All deployed Lambda function names
+    Value: !Sub |
+      upload=${UploadFunction},
+      upload-goal=${UploadGoalFunction},
+      categorize-goal=${CategorizeGoalFunction},
+      get-goals=${GetGoalsFunction},
+      get-user-data=${GetUserDataFunction},
+      get-suggestions=${GetSuggestionsFunction},
+      post-suggestion=${PostSuggestionFunction},
+      generate-suggestions=${GenerateSuggestionsFunction}
