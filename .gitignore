@@ -4,9 +4,7 @@ bin
 **/.env
 pyvenv.cfg
 **/.DS_Store
-*.zip
-*.pyc
-**/__pycache__/
-backend/package/
-backend/deployment.zip
-**/.env
+node_modules/
+dist/
+.env
+.env.local
