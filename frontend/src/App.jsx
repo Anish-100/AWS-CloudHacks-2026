@@ -21,16 +21,40 @@ function withGeneratedGoalId(goal) {
   };
 }
 
+function isPastDeadline(deadline) {
+  if (!deadline) {
+    return false;
+  }
+
+  const deadlineEnd = new Date(`${deadline}T23:59:59`);
+  return !Number.isNaN(deadlineEnd.getTime()) && deadlineEnd < new Date();
+}
+
 function deriveStatus(goal) {
-  if (goal.status === "failed" || goal.status === "achieved") {
+  if (goal.status === "achieved") {
     return goal.status;
   }
 
-  return Number(goal.currentAmount) >= Number(goal.targetAmount) ? "achieved" : "pending";
+  if (Number(goal.currentAmount) >= Number(goal.targetAmount)) {
+    return "achieved";
+  }
+
+  if (goal.status === "failed" || isPastDeadline(goal.deadline)) {
+    return "failed";
+  }
+
+  return "pending";
+}
+
+function normalizeGoalStatus(goal) {
+  return {
+    ...goal,
+    status: deriveStatus(goal),
+  };
 }
 
 export default function App() {
-  const [goals, setGoals] = useState(mockGoals);
+  const [goals, setGoals] = useState(() => mockGoals.map(normalizeGoalStatus));
   const [recommendations, setRecommendations] = useState(mockRecommendations);
   const [quickSightUrl, setQuickSightUrl] = useState("");
   const [uploadStatus, setUploadStatus] = useState("Ready");
@@ -48,7 +72,7 @@ export default function App() {
     getGoals()
       .then((loadedGoals) => {
         if (loadedGoals.length) {
-          setGoals(loadedGoals);
+          setGoals(loadedGoals.map(normalizeGoalStatus));
         }
       })
       .catch(() => setUploadStatus("API unavailable"));
