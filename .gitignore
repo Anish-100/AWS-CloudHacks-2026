@@ -9,3 +9,4 @@ pyvenv.cfg
 **/__pycache__/
 backend/package/
 backend/deployment.zip
+**/.env
