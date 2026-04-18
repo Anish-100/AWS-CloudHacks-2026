@@ -5,3 +5,5 @@ bin
 pyvenv.cfg
 **/.DS_Store
 **/__pycache__/
+backend/package/
+backend/deployment.zip

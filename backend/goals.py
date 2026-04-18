@@ -1,21 +1,39 @@
+import json
 import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 import boto3
-from boto3.dynamodb.conditions import Key
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
-GOALS_TABLE = os.environ.get("GOALS_TABLE", "puran-goals-dev")
+GOALS_LAMBDA = os.environ.get("GOALS_LAMBDA", "UserGoals-handler")
 USER_ID = os.environ.get("USER_ID", "demo-user")
 
-_dynamodb = boto3.resource("dynamodb")
-table = _dynamodb.Table(GOALS_TABLE)
+_lambda = boto3.client("lambda")
 
+
+# ── Lambda invocation helper ──────────────────────────────────────────────────
+# Assumption: Goals Lambda accepts { "action": "...", "data": { ... } }
+# and returns { "items": [...] } or { "item": {...} }
+# Update action names / payload shape to match teammate's actual implementation.
+
+def _invoke(action: str, data: dict) -> dict:
+    resp = _lambda.invoke(
+        FunctionName=GOALS_LAMBDA,
+        InvocationType="RequestResponse",
+        Payload=json.dumps({"action": action, "data": data}),
+    )
+    result = json.loads(resp["Payload"].read())
+    if resp.get("FunctionError"):
+        raise HTTPException(status_code=500, detail=result)
+    return result
+
+
+# ── Models ────────────────────────────────────────────────────────────────────
 
 class GoalCreate(BaseModel):
     title: str
@@ -32,10 +50,12 @@ class GoalUpdate(BaseModel):
     deadline: Optional[str] = None
 
 
+# ── Routes ────────────────────────────────────────────────────────────────────
+
 @router.get("")
 def list_goals():
-    resp = table.query(KeyConditionExpression=Key("userId").eq(USER_ID))
-    return {"goals": resp.get("Items", [])}
+    result = _invoke("getAll", {"userId": USER_ID})
+    return {"goals": result.get("items", [])}
 
 
 @router.post("", status_code=201)
@@ -51,40 +71,19 @@ def create_goal(goal: GoalCreate):
         "status": "pending",
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
-    table.put_item(Item=item)
-    return item
+    result = _invoke("create", item)
+    return result.get("item", item)
 
 
 @router.put("/{goal_id}")
 def update_goal(goal_id: str, update: GoalUpdate):
-    field_map = {
-        "currentAmount": ("#ca", ":ca", str),
-        "status":        ("#st", ":st", str),
-        "title":         ("#ti", ":ti", str),
-        "targetAmount":  ("#ta", ":ta", str),
-        "deadline":      ("#dl", ":dl", str),
-    }
-    expr_parts, names, values = [], {}, {}
-    for field, (name_key, val_key, transform) in field_map.items():
-        val = getattr(update, field)
-        if val is not None:
-            expr_parts.append(f"{name_key} = {val_key}")
-            names[name_key] = field
-            values[val_key] = transform(val)
-
-    if not expr_parts:
+    updates = {k: v for k, v in update.model_dump().items() if v is not None}
+    if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-
-    resp = table.update_item(
-        Key={"userId": USER_ID, "goalId": goal_id},
-        UpdateExpression="SET " + ", ".join(expr_parts),
-        ExpressionAttributeNames=names,
-        ExpressionAttributeValues=values,
-        ReturnValues="ALL_NEW",
-    )
-    return resp.get("Attributes", {})
+    result = _invoke("update", {"userId": USER_ID, "goalId": goal_id, **updates})
+    return result.get("item", {})
 
 
 @router.delete("/{goal_id}", status_code=204)
 def delete_goal(goal_id: str):
-    table.delete_item(Key={"userId": USER_ID, "goalId": goal_id})
+    _invoke("delete", {"userId": USER_ID, "goalId": goal_id})

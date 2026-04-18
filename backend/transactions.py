@@ -6,27 +6,53 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import boto3
-from boto3.dynamodb.conditions import Key
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(tags=["transactions"])
 
-TRANSACTIONS_TABLE = os.environ.get("TRANSACTIONS_TABLE", "puran-transactions-dev")
-GOALS_TABLE = os.environ.get("GOALS_TABLE", "puran-goals-dev")
+TRANSACTIONS_LAMBDA = os.environ.get("TRANSACTIONS_LAMBDA", "FinancialTransactions-handler")
+GOALS_LAMBDA = os.environ.get("GOALS_LAMBDA", "UserGoals-handler")
 DATA_BUCKET = os.environ.get("DATA_BUCKET", "")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
 QUICKSIGHT_ACCOUNT_ID = os.environ.get("QUICKSIGHT_ACCOUNT_ID", "")
 QUICKSIGHT_NAMESPACE = os.environ.get("QUICKSIGHT_NAMESPACE", "default")
 USER_ID = os.environ.get("USER_ID", "demo-user")
 
-_dynamodb = boto3.resource("dynamodb")
+_lambda = boto3.client("lambda")
 _s3 = boto3.client("s3")
 _bedrock = boto3.client("bedrock-runtime")
 _quicksight = boto3.client("quicksight")
 
-transactions_table = _dynamodb.Table(TRANSACTIONS_TABLE)
-goals_table = _dynamodb.Table(GOALS_TABLE)
 
+# ── Lambda invocation helpers ─────────────────────────────────────────────────
+# Assumption: both Lambdas accept { "action": "...", "data": { ... } }
+# Update action names / payload shape to match teammate's actual implementation.
+
+def _invoke_transactions(action: str, data: dict) -> dict:
+    resp = _lambda.invoke(
+        FunctionName=TRANSACTIONS_LAMBDA,
+        InvocationType="RequestResponse",
+        Payload=json.dumps({"action": action, "data": data}),
+    )
+    result = json.loads(resp["Payload"].read())
+    if resp.get("FunctionError"):
+        raise HTTPException(status_code=500, detail=result)
+    return result
+
+
+def _invoke_goals(action: str, data: dict) -> dict:
+    resp = _lambda.invoke(
+        FunctionName=GOALS_LAMBDA,
+        InvocationType="RequestResponse",
+        Payload=json.dumps({"action": action, "data": data}),
+    )
+    result = json.loads(resp["Payload"].read())
+    if resp.get("FunctionError"):
+        raise HTTPException(status_code=500, detail=result)
+    return result
+
+
+# ── Upload ────────────────────────────────────────────────────────────────────
 
 @router.post("/upload")
 def get_upload_url():
@@ -40,6 +66,8 @@ def get_upload_url():
     return {"uploadUrl": url, "batchId": batch_id, "key": key}
 
 
+# ── Status ────────────────────────────────────────────────────────────────────
+
 @router.get("/status/{batch_id}")
 def get_status(batch_id: str):
     key = f"processed/{USER_ID}/{batch_id}.csv"
@@ -50,42 +78,40 @@ def get_status(batch_id: str):
         return {"batchId": batch_id, "status": "processing"}
 
 
+# ── Transactions ──────────────────────────────────────────────────────────────
+
 @router.get("/transactions")
 def list_transactions(startDate: Optional[str] = None, endDate: Optional[str] = None):
-    key_expr = Key("userId").eq(USER_ID)
-    if startDate and endDate:
-        key_expr = key_expr & Key("transactionDate").between(startDate, endDate)
-    elif startDate:
-        key_expr = key_expr & Key("transactionDate").gte(startDate)
+    data = {"userId": USER_ID}
+    if startDate:
+        data["startDate"] = startDate
+    if endDate:
+        data["endDate"] = endDate
+    result = _invoke_transactions("query", data)
+    return {"transactions": result.get("items", [])}
 
-    resp = transactions_table.query(
-        IndexName="userId-date-index",
-        KeyConditionExpression=key_expr,
-    )
-    return {"transactions": resp.get("Items", [])}
 
+# ── Recommendations ───────────────────────────────────────────────────────────
 
 @router.get("/recommendations")
 def get_recommendations():
     month_start = datetime.now(timezone.utc).strftime("%Y-%m-01")
-    resp = transactions_table.query(
-        IndexName="userId-date-index",
-        KeyConditionExpression=Key("userId").eq(USER_ID) & Key("transactionDate").gte(month_start),
-    )
+    tx_result = _invoke_transactions("query", {"userId": USER_ID, "startDate": month_start})
+    items = tx_result.get("items", [])
 
     category_totals: dict[str, float] = defaultdict(float)
     income = 0.0
-    for item in resp.get("Items", []):
+    for item in items:
         amt = float(item.get("amount", 0))
         if amt > 0:
             income += amt
         else:
             category_totals[item.get("category", "Other")] += abs(amt)
 
-    goals_resp = goals_table.query(KeyConditionExpression=Key("userId").eq(USER_ID))
+    goals_result = _invoke_goals("getAll", {"userId": USER_ID})
     active_goals = [
         {"title": g["title"], "target": g["targetAmount"], "current": g["currentAmount"], "deadline": g["deadline"]}
-        for g in goals_resp.get("Items", [])
+        for g in goals_result.get("items", [])
         if g.get("status") == "pending"
     ]
 
@@ -109,6 +135,8 @@ def get_recommendations():
     except json.JSONDecodeError:
         return {"raw": text}
 
+
+# ── QuickSight ────────────────────────────────────────────────────────────────
 
 @router.get("/quicksight/embed")
 def get_embed_url(dashboard_id: str):
