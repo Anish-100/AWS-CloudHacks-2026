@@ -1,17 +1,52 @@
+import moneyTree from "../Images/pyranMoneyTree.png";
+import burntMoneyTree from "../Images/pyranMoneyTreeBurnt.png";
+
+function getGoalProgress(goal) {
+  const target = Number(goal.targetAmount || 0);
+  const current = Number(goal.currentAmount || 0);
+
+  if (target <= 0) {
+    return 0;
+  }
+
+  return Math.min(Math.max(current / target, 0), 1);
+}
+
 function buildForest(goals) {
-  const trees = [];
+  return goals.map((goal) => {
+    const progress = getGoalProgress(goal);
+    const intensity = goal.status === "pending" ? Math.max(0.12, 1 - progress) : 0;
+    const fireStyle = {
+      "--fire-intensity": intensity,
+      "--fire-opacity": 0.2 + intensity * 0.8,
+      "--fire-blur": `${(1 - intensity) * 0.7}px`,
+      "--fire-glow": `${7 + 22 * intensity}px`,
+      "--fire-bottom": `${10 - 5 * intensity}%`,
+      "--flame-one-width": `${20 + 28 * intensity}px`,
+      "--flame-one-height": `${36 + 58 * intensity}px`,
+      "--flame-two-width": `${15 + 21 * intensity}px`,
+      "--flame-two-height": `${29 + 40 * intensity}px`,
+      "--flame-three-width": `${14 + 18 * intensity}px`,
+      "--flame-three-height": `${26 + 34 * intensity}px`,
+      "--flame-scale": 0.62 + intensity * 0.38,
+      "--flame-scale-x-start": 0.72 + intensity * 0.32,
+      "--flame-scale-y-start": 0.76 + intensity * 0.32,
+      "--flame-scale-x-end": 0.8 + intensity * 0.34,
+      "--flame-scale-y-end": 0.84 + intensity * 0.4,
+      "--ember-size": `${3 + 4 * intensity}px`,
+      "--ember-opacity": 0.25 + 0.55 * intensity,
+      "--ember-drift": `${-10 + 20 * intensity}px`,
+    };
 
-  goals.forEach((goal) => {
-    if (goal.status === "achieved") {
-      trees.push({ label: "tree", className: "tree achieved", icon: "▲" });
-    } else if (goal.status === "failed") {
-      trees.push({ label: "burned tree", className: "tree failed", icon: "♠" });
-    } else {
-      trees.push({ label: "sapling", className: "tree pending", icon: "♣" });
-    }
+    return {
+      ...goal,
+      image: goal.status === "failed" ? burntMoneyTree : moneyTree,
+      label: goal.status === "failed" ? `${goal.title} failed` : `${goal.title} money tree`,
+      progress,
+      intensity,
+      fireStyle,
+    };
   });
-
-  return trees;
 }
 
 export default function ForestCanvas({ goals }) {
@@ -36,13 +71,38 @@ export default function ForestCanvas({ goals }) {
 
         <div className="forest-ground" aria-label="Goal forest status">
           {forest.length ? (
-            forest.map((tree, index) => (
-              <span key={`${tree.label}-${index}`} className={tree.className} aria-label={tree.label}>
-                {tree.icon}
-              </span>
-            ))
+            forest.map((tree) => {
+              const intensityPercent = Math.round(tree.intensity * 100);
+              const progressPercent = Math.round(tree.progress * 100);
+
+              return (
+                <figure
+                  key={tree.goalId || `${tree.title}-${tree.deadline}`}
+                  className={`money-tree ${tree.status}`}
+                  style={tree.fireStyle}
+                  aria-label={`${tree.label}, ${progressPercent}% complete`}
+                  title={`${tree.title}: ${progressPercent}% complete`}
+                >
+                  <div className="money-tree__stage">
+                    <img className="money-tree__image" src={tree.image} alt="" />
+                    {tree.status === "pending" ? (
+                      <div className="money-tree__fire" aria-hidden="true">
+                        <span className="flame flame-one" />
+                        <span className="flame flame-two" />
+                        <span className="flame flame-three" />
+                        <span className="ember ember-one" />
+                        <span className="ember ember-two" />
+                      </div>
+                    ) : null}
+                  </div>
+                  <figcaption>
+                    {tree.status === "failed" ? "burnt" : `${intensityPercent}% fire`}
+                  </figcaption>
+                </figure>
+              );
+            })
           ) : (
-            <p className="empty-state">Create a goal to plant the first sapling.</p>
+            <p className="empty-state">Create a goal to plant the first money tree.</p>
           )}
         </div>
 
