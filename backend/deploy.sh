@@ -47,6 +47,8 @@ else
 fi
 
 deploy_lambda "GetGoals-handler"              "GetGoals-handler.py"
+deploy_lambda "GetSuggestions-handler"        "GetSuggestions-handler.py"
+deploy_lambda "PostSuggestion-handler"        "PostSuggestion-handler.py"
 deploy_lambda "FinancialTransactions-handler" "FinancialTransactions-handler.py"
 deploy_lambda "UserGoals-handler"             "UserGoals-handler.py"
 
