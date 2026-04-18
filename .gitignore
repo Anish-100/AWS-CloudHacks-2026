@@ -10,3 +10,4 @@ pyvenv.cfg
 backend/package/
 backend/deployment.zip
 **/.env
+**/node_modules
