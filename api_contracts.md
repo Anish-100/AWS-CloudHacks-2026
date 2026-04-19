@@ -361,25 +361,12 @@ Lambda env vars required: `TRANSACTIONS_TABLE`
 
 ---
 
-## 14. S3 Event → post_goals_data.py
-**Not an HTTP endpoint — fires automatically on S3 PutObject**
-
-Lambda env vars required: `DYNAMO_TABLE_NAME`, `DATASET_ID`
-
-CSV format (`uci_student_goals.csv`):
-```
-StartDate,EndDate,Duration,Description,Category,Specs,AmountSaved,Result
-04/01/2025,04/11/2025,10,ROLLING LOUD TICKETS,Entertainment,Concert,150,true
-```
-
----
-
 ## Missing Lambda Implementations
 
 | Frontend Call | Status | What's Needed |
 |---------------|--------|---------------|
 | `GET /upload` | ❌ Missing | Lambda that calls `s3.generate_presigned_url('put_object')` and returns `{uploadUrl, batchId}` |
-| `POST /goals` | ❌ Missing | Lambda that writes goal to DynamoDB with frontend field names |
+| `POST /goals` | ✅ Implemented | `post_goal_data.py` writes goal items to DynamoDB |
 | `PUT /goals/{id}` | ❌ Missing | Lambda that updates `AmountSaved` and `Result` in DynamoDB |
 | `DELETE /goals/{id}` | ❌ Missing | Lambda that deletes goal item from DynamoDB |
 | `GET /status/{batchId}` | ❌ Missing | Lambda that checks processing state (or simplify: remove polling) |

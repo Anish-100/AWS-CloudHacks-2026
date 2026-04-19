@@ -419,7 +419,7 @@ button:hover {
 
 .money-tree__fire {
   position: absolute;
-  inset: 5% 10% 18%;
+  inset: 3% 8% 0;
   z-index: 2;
   opacity: var(--fire-opacity);
   filter:
@@ -446,7 +446,7 @@ button:hover {
 
 .flame-two {
   left: 37%;
-  bottom: 16%;
+  bottom: 4%;
   width: var(--flame-two-width);
   height: var(--flame-two-height);
   animation-delay: -0.24s;
@@ -455,7 +455,7 @@ button:hover {
 
 .flame-three {
   left: 63%;
-  bottom: 14%;
+  bottom: 3%;
   width: var(--flame-three-width);
   height: var(--flame-three-height);
   animation-delay: -0.42s;

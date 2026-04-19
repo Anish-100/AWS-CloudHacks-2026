@@ -21,7 +21,7 @@ function buildForest(goals) {
       "--fire-opacity": 0.2 + intensity * 0.8,
       "--fire-blur": `${(1 - intensity) * 0.7}px`,
       "--fire-glow": `${7 + 22 * intensity}px`,
-      "--fire-bottom": `${10 - 5 * intensity}%`,
+      "--fire-bottom": `${2 - 2 * intensity}%`,
       "--flame-one-width": `${20 + 28 * intensity}px`,
       "--flame-one-height": `${36 + 58 * intensity}px`,
       "--flame-two-width": `${15 + 21 * intensity}px`,

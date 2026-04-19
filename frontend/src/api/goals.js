@@ -1,11 +1,35 @@
 import { api } from "./client";
 
-function normalizeGoals(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
+const DATASET_ID = import.meta.env.VITE_DATASET_ID || import.meta.env.VITE_USER_ID || "demo";
+
+function normalizeGoal(goal) {
+  if (!goal) {
+    return goal;
   }
 
-  return payload?.goals || payload?.items || [];
+  const targetAmount = goal.targetAmount ?? goal.target_amount ?? goal.TotalAmount ?? 0;
+  const currentAmount = goal.currentAmount ?? goal.amount_saved ?? goal.AmountSaved ?? 0;
+  const deadline = goal.deadline ?? goal.end_date ?? goal.EndDate ?? "";
+  const title = goal.title ?? goal.description ?? goal.Description ?? "Untitled goal";
+  const type = goal.type ?? goal.category ?? goal.Category ?? "short";
+  const result = goal.result ?? goal.Result;
+
+  return {
+    ...goal,
+    goalId: goal.goalId ?? goal.goal_id ?? goal.SK?.replace("GOAL#", ""),
+    title,
+    targetAmount: Number(targetAmount),
+    currentAmount: Number(currentAmount),
+    deadline,
+    type,
+    status: goal.status ?? (result ? "achieved" : "pending"),
+  };
+}
+
+function normalizeGoals(payload) {
+  const goals = Array.isArray(payload) ? payload : payload?.goals || payload?.items || [];
+
+  return goals.map(normalizeGoal);
 }
 
 export async function getGoals() {
@@ -13,16 +37,19 @@ export async function getGoals() {
 }
 
 export async function createGoal(goal) {
-  return api("/goals", {
+  return normalizeGoal(await api("/goals", {
     method: "POST",
     body: JSON.stringify(goal),
-  });
+  }));
 }
 
 export async function updateGoal(goalId, updates) {
   return api(`/goals/${goalId}`, {
     method: "PUT",
-    body: JSON.stringify(updates),
+    body: JSON.stringify({
+      dataset_id: updates.dataset_id || DATASET_ID,
+      ...updates,
+    }),
   });
 }
 
