@@ -31,7 +31,6 @@ function normalizeRecommendationList(recommendations) {
   if (Array.isArray(recommendations?.suggestions)) {
     return recommendations.suggestions;
   }
-
   return [];
 }
 
@@ -91,13 +90,29 @@ export default function AnalyticsPanel({ goals, recommendations }) {
       </div>
 
       <div className="analytics-grid">
+        {/* Saved vs Remaining */}
         <div className="chart-surface chart-surface-wide">
           <h3>Saved vs remaining</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={goalProgress} margin={{ top: 8, right: 10, left: 0, bottom: 4 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart
+              data={goalProgress}
+              margin={{ top: 8, right: 10, left: 0, bottom: 60 }}
+            >
               <CartesianGrid stroke="rgba(202, 216, 207, 0.12)" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: "#cad8cf", fontSize: 12 }} tickLine={false} />
-              <YAxis tick={{ fill: "#a9b8ad", fontSize: 12 }} tickLine={false} width={44} tickFormatter={(v) => `$${v}`} />
+              <XAxis
+                dataKey="name"
+                tick={{ fill: "#cad8cf", fontSize: 12 }}
+                tickLine={false}
+                angle={-35}
+                textAnchor="end"
+                interval={0}
+              />
+              <YAxis
+                tick={{ fill: "#a9b8ad", fontSize: 12 }}
+                tickLine={false}
+                width={54}
+                tickFormatter={(v) => `$${v}`}
+              />
               <Tooltip
                 formatter={(value, name) => [currency(value), name === "saved" ? "Saved" : "Remaining"]}
                 contentStyle={{ background: "#101412", border: "1px solid #304238", borderRadius: 8 }}
@@ -108,16 +123,23 @@ export default function AnalyticsPanel({ goals, recommendations }) {
           </ResponsiveContainer>
         </div>
 
+        {/* Status Mix */}
         <div className="chart-surface">
           <h3>Status mix</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={280}>
             <PieChart>
-              <Pie data={statusTotals} dataKey="value" nameKey="name" outerRadius={86} label>
+              <Pie
+                data={statusTotals}
+                dataKey="value"
+                nameKey="name"
+                outerRadius={75}
+              >
                 {statusTotals.map((entry) => (
                   <Cell key={entry.name} fill={statusColors[entry.name]} />
                 ))}
-              </Pie>
+</Pie>
               <Tooltip
+                formatter={(value, name) => [value, name]}
                 contentStyle={{ background: "#101412", border: "1px solid #304238", borderRadius: 8 }}
               />
             </PieChart>
