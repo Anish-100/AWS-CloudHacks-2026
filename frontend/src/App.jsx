@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { hasApiBaseUrl } from "./api/client.js";
 import { createGoal, deleteGoal, getGoals, updateGoal } from "./api/goals.js";
 import { getRecommendations } from "./api/recommendations.js";
-import { getUploadStatus, postUserData, requestUpload, uploadToS3 } from "./api/upload.js";
+import { getUploadStatus, getUserData, requestUpload, uploadFinancialData, uploadToS3 } from "./api/upload.js";
 import AnalyticsPanel from "./components/AnalyticsPanel.jsx";
 import AppShell from "./components/AppShell.jsx";
 import CsvUploader from "./components/CsvUploader.jsx";
@@ -181,12 +181,10 @@ export default function App() {
 
       setUploadStatus("Uploading to S3");
       await uploadToS3(uploadUrl, file);
-      setUploadStatus("Saving user data");
-      await postUserData({
-        batchId,
-        fileName: file.name,
-        contentType: file.type || "text/csv",
-      });
+      setUploadStatus("Updating financial data");
+      await uploadFinancialData(file);
+      setUploadStatus("Loading user data");
+      await getUserData();
       setUploadStatus("Processing");
       await new Promise((resolve) => setTimeout(resolve, 3000));
       await pollStatus(batchId);

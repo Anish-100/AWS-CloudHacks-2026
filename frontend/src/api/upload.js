@@ -25,10 +25,19 @@ export async function uploadToS3(uploadUrl, file) {
   }
 }
 
-export async function postUserData(userData) {
-  return api("/user-data", {
+export async function uploadFinancialData(file) {
+  return api("/upload-data", {
     method: "POST",
-    body: JSON.stringify(userData),
+    headers: {
+      "Content-Type": file.type || "text/csv",
+    },
+    body: file,
+  });
+}
+
+export async function getUserData() {
+  return api("/user-data", {
+    method: "GET",
   });
 }
 

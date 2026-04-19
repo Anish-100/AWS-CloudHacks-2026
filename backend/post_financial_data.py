@@ -1,6 +1,8 @@
 import boto3
+import base64
 import csv
 import io
+import json
 import os
 import time
 from decimal import Decimal, InvalidOperation
@@ -16,12 +18,18 @@ def parse_date(raw: str) -> str:
     return datetime.strptime(raw.strip(), '%m/%d/%Y').strftime('%Y-%m-%d')
 
 
-def lambda_handler(event, context):
-    bucket = event['Records'][0]['s3']['bucket']['name']
-    key = event['Records'][0]['s3']['object']['key']
+def response(status_code: int, payload: dict) -> dict:
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+        },
+        'body': json.dumps(payload),
+    }
 
-    response = s3.get_object(Bucket=bucket, Key=key)
-    content = response['Body'].read().decode('utf-8-sig')
+
+def financial_items_from_csv(content: str) -> list[dict]:
     reader = csv.DictReader(io.StringIO(content))
 
     items = []
@@ -51,6 +59,10 @@ def lambda_handler(event, context):
             'MonthBucket': transaction_date[:7],
         })
 
+    return items
+
+
+def write_items(items: list[dict]) -> dict:
     success, failed = 0, 0
     for i in range(0, len(items), 25):
         batch = items[i:i + 25]
@@ -72,3 +84,33 @@ def lambda_handler(event, context):
 
     print(f"Done. Success: {success}, Failed: {failed}")
     return {'success': success, 'failed': failed}
+
+
+def csv_content_from_api_event(event: dict) -> str:
+    body = event.get('body') or ''
+    if event.get('isBase64Encoded'):
+        return base64.b64decode(body).decode('utf-8-sig')
+    return body
+
+
+def csv_content_from_s3_event(event: dict) -> str:
+    bucket = event['Records'][0]['s3']['bucket']['name']
+    key = event['Records'][0]['s3']['object']['key']
+    s3_response = s3.get_object(Bucket=bucket, Key=key)
+    return s3_response['Body'].read().decode('utf-8-sig')
+
+
+def lambda_handler(event, context):
+    if event.get('httpMethod') == 'OPTIONS' or event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
+        return response(204, {})
+
+    if event.get('Records'):
+        content = csv_content_from_s3_event(event)
+    else:
+        content = csv_content_from_api_event(event)
+
+    if not content.strip():
+        return response(400, {'error': 'CSV body is required'})
+
+    result = write_items(financial_items_from_csv(content))
+    return response(200, result)
