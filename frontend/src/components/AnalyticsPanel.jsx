@@ -97,13 +97,13 @@ export default function AnalyticsPanel({ goals, recommendations }) {
             <BarChart data={goalProgress} margin={{ top: 8, right: 10, left: 0, bottom: 4 }}>
               <CartesianGrid stroke="rgba(202, 216, 207, 0.12)" vertical={false} />
               <XAxis dataKey="name" tick={{ fill: "#cad8cf", fontSize: 12 }} tickLine={false} />
-              <YAxis tick={{ fill: "#a9b8ad", fontSize: 12 }} tickLine={false} width={44} />
+              <YAxis tick={{ fill: "#a9b8ad", fontSize: 12 }} tickLine={false} width={44} tickFormatter={(v) => `$${v}`} />
               <Tooltip
-                formatter={(value) => currency(value)}
+                formatter={(value, name) => [currency(value), name === "saved" ? "Saved" : "Remaining"]}
                 contentStyle={{ background: "#101412", border: "1px solid #304238", borderRadius: 8 }}
               />
-              <Bar dataKey="saved" stackId="goal" fill="#2ecc71" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="remaining" stackId="goal" fill="#e6b800" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="saved" stackId="goal" fill="#2ecc71" radius={[0, 0, 0, 0]} name="saved" />
+              <Bar dataKey="remaining" stackId="goal" fill="#e6b800" radius={[6, 6, 0, 0]} name="remaining" />
             </BarChart>
           </ResponsiveContainer>
         </div>
