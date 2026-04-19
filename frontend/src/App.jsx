@@ -12,6 +12,12 @@ import GoalsDashboard from "./components/GoalsDashboard.jsx";
 import RecommendationsPanel from "./components/RecommendationsPanel.jsx";
 import { mockRecommendations, mockTransactionData } from "./data/mockData.js";
 
+const GOAL_REFRESH_DELAY_MS = 1500;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function withGeneratedGoalId(goal) {
   return {
     ...goal,
@@ -106,14 +112,17 @@ export default function App() {
 
   const apiMode = useMemo(() => (apiEnabled ? "API connected" : "Mock mode"), [apiEnabled]);
 
+  async function refreshGoals() {
+    const loadedGoals = await getGoals();
+    setGoals(loadedGoals.map(normalizeGoalStatus));
+  }
+
   useEffect(() => {
     if (!apiEnabled) {
       return;
     }
 
-    getGoals()
-      .then((loadedGoals) => setGoals(loadedGoals.map(normalizeGoalStatus)))
-      .catch(() => setUploadStatus("API unavailable"));
+    refreshGoals().catch(() => setUploadStatus("API unavailable"));
 
     setIsLoadingRecs(true);
     getRecommendations()
@@ -132,20 +141,22 @@ export default function App() {
       status: deriveStatus(goal),
     });
 
-    setGoals((current) => [nextGoal, ...current]);
-
     if (apiEnabled) {
       try {
-        const savedGoal = await createGoal(goal);
-        if (savedGoal) {
-          setGoals((current) =>
-            current.map((item) => (item.goalId === nextGoal.goalId ? withGeneratedGoalId(savedGoal) : item)),
-          );
-        }
+        setUploadStatus("Saving goal");
+        await createGoal(goal);
+        await delay(GOAL_REFRESH_DELAY_MS);
+        await refreshGoals();
+        setUploadStatus("Goal saved");
       } catch {
+        setGoals((current) => [nextGoal, ...current]);
         setUploadStatus("Goal saved locally");
       }
+
+      return;
     }
+
+    setGoals((current) => [nextGoal, ...current]);
   }
 
   async function handleUpdateProgress(goal) {
