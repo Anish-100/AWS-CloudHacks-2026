@@ -5,7 +5,7 @@ from decimal import Decimal
 from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.environ["financial_transactions"])
+table = dynamodb.Table(os.environ["TRANSACTIONS_TABLE"])
 DEFAULT_DATASET_ID = os.environ.get("DATASET_ID", "demo")
 
 def decimal_to_float(value):
