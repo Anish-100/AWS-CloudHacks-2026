@@ -1,5 +1,6 @@
 export default function RecommendationsPanel({ recommendations, isLoading }) {
-  const items = recommendations?.recommendations || [];
+  const suggestionItems = recommendations?.suggestions?.map((item) => item.action) || [];
+  const items = recommendations?.recommendations || suggestionItems;
   const risks = recommendations?.riskCategories || [];
 
   return (
