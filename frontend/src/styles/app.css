@@ -196,11 +196,86 @@ button:hover {
   display: grid;
   gap: 10px;
   margin: 0 0 16px;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
 }
 
 .recommendation-list li {
   line-height: 1.45;
+}
+
+.recommendation-choice {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.recommendation-choice label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 10px;
+}
+
+.recommendation-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.recommendation-status {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: rgba(18, 20, 23, 0.72);
+  color: var(--color-muted-strong);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.recommendation-choice label.accepted .recommendation-status {
+  border-color: var(--color-progress);
+  background: rgba(46, 204, 113, 0.16);
+  color: var(--color-progress);
+}
+
+.recommendation-choice label.accepted .recommendation-status::before {
+  content: "✓";
+}
+
+.recommendation-choice label.rejected .recommendation-status {
+  border-color: var(--color-risk);
+  background: rgba(215, 38, 61, 0.16);
+  color: var(--color-risk);
+}
+
+.recommendation-choice label.rejected .recommendation-status::before {
+  content: "×";
+}
+
+.recommendation-choice strong {
+  color: var(--color-progress);
+  font-weight: 800;
+}
+
+.recommendation-reject {
+  min-height: 32px;
+  padding: 0 10px;
+  color: var(--color-urgency);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.recommendation-reject:disabled,
+.recommendation-choice label.accepted,
+.recommendation-choice label.rejected {
+  opacity: 0.58;
 }
 
 .risk-row span {

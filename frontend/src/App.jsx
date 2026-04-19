@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { hasApiBaseUrl } from "./api/client.js";
 import { createGoal, deleteGoal, getGoals, updateGoal } from "./api/goals.js";
-import { getRecommendations } from "./api/recommendations.js";
+import { acceptRecommendation, getRecommendations, rejectRecommendation } from "./api/recommendations.js";
 import { getUploadStatus, getUserData, requestUpload, uploadFinancialData, uploadToS3 } from "./api/upload.js";
 import AnalyticsPanel from "./components/AnalyticsPanel.jsx";
 import AppShell from "./components/AppShell.jsx";
@@ -51,12 +51,57 @@ function normalizeGoalStatus(goal) {
   };
 }
 
+function getGoalValue(goal, camelKey, snakeKey, fallback = "") {
+  return goal[camelKey] ?? goal[snakeKey] ?? fallback;
+}
+
+function getGoalId(goal) {
+  return getGoalValue(goal, "goalId", "goal_id") || goal.SK?.replace("GOAL#", "");
+}
+
+function getGoalDeadline(goal) {
+  return getGoalValue(goal, "deadline", "end_date");
+}
+
+function getGoalCurrent(goal) {
+  return Number(getGoalValue(goal, "currentAmount", "amount_saved", 0));
+}
+
+function getGoalTarget(goal) {
+  return Number(getGoalValue(goal, "targetAmount", "target_amount", 0));
+}
+
+function findNearestActiveGoal(goals) {
+  return [...goals]
+    .filter((goal) => {
+      const status = goal.status || (goal.result ? "achieved" : "pending");
+      return status === "pending" && getGoalCurrent(goal) < getGoalTarget(goal);
+    })
+    .sort((a, b) => new Date(getGoalDeadline(a) || "9999-12-31") - new Date(getGoalDeadline(b) || "9999-12-31"))[0];
+}
+
+function applySavingsToGoal(goal, savings) {
+  const currentAmount = Math.min(getGoalCurrent(goal) + savings, getGoalTarget(goal));
+  const updates = {
+    currentAmount,
+    amount_saved: currentAmount,
+    status: deriveStatus({ ...goal, currentAmount }),
+  };
+
+  return {
+    ...goal,
+    ...updates,
+  };
+}
+
 export default function App() {
   const [goals, setGoals] = useState(() => mockGoals.map(normalizeGoalStatus));
   const [recommendations, setRecommendations] = useState(mockRecommendations);
   const [transactionData, setTransactionData] = useState(mockTransactionData);
   const [uploadStatus, setUploadStatus] = useState("Ready");
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
+  const [acceptedAdvice, setAcceptedAdvice] = useState([]);
+  const [rejectedAdvice, setRejectedAdvice] = useState([]);
   const apiEnabled = hasApiBaseUrl();
 
   const apiMode = useMemo(() => (apiEnabled ? "API connected" : "Mock mode"), [apiEnabled]);
@@ -148,6 +193,72 @@ export default function App() {
     }
   }
 
+  async function handleAcceptAdvice(recommendation) {
+    const suggestionId = recommendation.suggestion_id || recommendation.action;
+    const savings = Number(recommendation.monthly_saving || 0);
+    const nearestGoal = findNearestActiveGoal(goals);
+
+    setAcceptedAdvice((current) => [...new Set([...current, suggestionId])]);
+
+    if (nearestGoal && savings > 0) {
+      const updatedGoal = applySavingsToGoal(nearestGoal, savings);
+      const nearestGoalId = getGoalId(nearestGoal);
+
+      setGoals((current) => current.map((goal) => (getGoalId(goal) === nearestGoalId ? updatedGoal : goal)));
+    }
+
+    if (!apiEnabled) {
+      setUploadStatus(nearestGoal && savings > 0 ? "Advice accepted: nearest goal updated" : "Advice accepted");
+      return;
+    }
+
+    try {
+      const response = await acceptRecommendation(recommendation);
+      const serverGoal = response?.updatedGoal;
+
+      if (serverGoal?.goalId) {
+        setGoals((current) =>
+          current.map((goal) =>
+            getGoalId(goal) === serverGoal.goalId
+              ? normalizeGoalStatus({
+                  ...goal,
+                  ...serverGoal,
+                })
+              : goal,
+          ),
+        );
+      }
+
+      getRecommendations()
+        .then(setRecommendations)
+        .catch(() => console.error("Failed to refresh suggestions"));
+
+      setUploadStatus("Advice accepted");
+    } catch {
+      setUploadStatus("Advice accepted locally");
+    }
+  }
+
+  async function handleRejectAdvice(recommendation) {
+    const suggestionId = recommendation.suggestion_id || recommendation.action;
+    setRejectedAdvice((current) => [...new Set([...current, suggestionId])]);
+
+    if (!apiEnabled) {
+      setUploadStatus("Advice rejected");
+      return;
+    }
+
+    try {
+      await rejectRecommendation(recommendation);
+      getRecommendations()
+        .then(setRecommendations)
+        .catch(() => console.error("Failed to refresh suggestions"));
+      setUploadStatus("Advice rejected");
+    } catch {
+      setUploadStatus("Could not reject advice");
+    }
+  }
+
   async function pollStatus(batchId) {
     if (!batchId) {
       setUploadStatus("Processing");
@@ -203,7 +314,14 @@ export default function App() {
       <main className="dashboard-grid">
         <div className="left-rail">
           <CsvUploader onUpload={handleUpload} />
-          <RecommendationsPanel recommendations={recommendations} isLoading={isLoadingRecs} />
+          <RecommendationsPanel
+            recommendations={recommendations}
+            isLoading={isLoadingRecs}
+            acceptedAdvice={acceptedAdvice}
+            rejectedAdvice={rejectedAdvice}
+            onAcceptAdvice={handleAcceptAdvice}
+            onRejectAdvice={handleRejectAdvice}
+          />
         </div>
 
         <div className="center-stage">
