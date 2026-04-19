@@ -26,17 +26,18 @@ def lambda_handler(event, context):
     goals = [
         {
             'goalId':         item.get('goalId', item['SK'].split('#')[-1]),
-            'description':    item['Description'],
-            'category':       item['Category'],
+            'description':    item.get('Description', ''),
+            'category':       item.get('Category', 'short'),
             'specs':          item.get('Specs', ''),
-            'start_date':     item['StartDate'],
-            'end_date':       item['EndDate'],
-            'duration_days':  int(item['Duration']),
-            'target_amount':  float(item['TotalAmount']),
-            'amount_saved':   float(item['AmountSaved']),
-            'result':         item['Result'],
+            'start_date':     item.get('StartDate', ''),
+            'end_date':       item.get('EndDate', ''),
+            'duration_days':  int(item.get('Duration', 0)),
+            'target_amount':  float(item.get('TotalAmount', 0)),
+            'amount_saved':   float(item.get('AmountSaved', 0)),
+            'result':         item.get('Result', False),
         }
         for item in response['Items']
+        if item.get('entityType') == 'GOAL'
     ]
 
     return {

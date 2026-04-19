@@ -179,7 +179,7 @@ export default function App() {
       current.map((item) => (item.goalId === goal.goalId ? { ...item, ...updates } : item)),
     );
 
-    if (apiEnabled) {
+    if (apiEnabled && goal.goalId) {
       try {
         await updateGoal(goal.goalId, updates);
       } catch {
