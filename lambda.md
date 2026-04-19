@@ -166,7 +166,6 @@ Browser
 | Lambda | Needs |
 |--------|-------|
 | `get_presigned_url` | `s3:PutObject` on upload bucket |
-| `upload_financial_data` | `s3:GetObject`, `dynamodb:BatchWriteItem` |
 | `update_financial_data` | `s3:GetObject`, `dynamodb:BatchWriteItem` |
 | `post_goal_data` | `dynamodb:PutItem` on UserGoals |
 | `get_goal_data` | `dynamodb:Query` on UserGoals |
@@ -175,6 +174,18 @@ Browser
 | `get_financial_data` | `dynamodb:Query` on FinancialTransactions |
 | `get_suggestions_data` | `dynamodb:Query` on Suggestions |
 | `post_suggestion_input` | `dynamodb:PutItem`, `dynamodb:Query`, `dynamodb:BatchWriteItem` on Suggestions |
+
+---
+
+## API Gateway — Known Config Issues
+
+These need to be fixed in the AWS console, then redeploy the stage:
+
+| Issue | Action |
+|-------|--------|
+| `/user-data` missing `GET` method | Add GET → integrate with `get_financial_data` |
+| `/goals/{goalId}` resource missing | Add resource + `PUT` → `put_goal_data`, `DELETE` → `delete_goal_data` |
+| `/upload-data` route is a leftover | Delete the resource entirely |
 
 ---
 
