@@ -3,7 +3,9 @@ import json
 import os
 import uuid
 
-s3 = boto3.client('s3')
+from botocore.config import Config
+
+s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
 BUCKET = os.environ['UPLOAD_BUCKET']
 EXPIRY = int(os.environ.get('PRESIGN_EXPIRY', 300))
 
@@ -18,7 +20,7 @@ def lambda_handler(event, context):
 
     upload_url = s3.generate_presigned_url(
         'put_object',
-        Params={'Bucket': BUCKET, 'Key': key},
+        Params={'Bucket': BUCKET, 'Key': key, 'ContentType': content_type},
         ExpiresIn=EXPIRY,
     )
 
