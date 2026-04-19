@@ -10,7 +10,7 @@ import ForestCanvas from "./components/ForestCanvas.jsx";
 import GoalForm from "./components/GoalForm.jsx";
 import GoalsDashboard from "./components/GoalsDashboard.jsx";
 import RecommendationsPanel from "./components/RecommendationsPanel.jsx";
-import { mockGoals, mockRecommendations, mockTransactionData } from "./data/mockData.js";
+import { mockRecommendations, mockTransactionData } from "./data/mockData.js";
 
 function withGeneratedGoalId(goal) {
   return {
@@ -95,7 +95,7 @@ function applySavingsToGoal(goal, savings) {
 }
 
 export default function App() {
-  const [goals, setGoals] = useState(() => mockGoals.map(normalizeGoalStatus));
+  const [goals, setGoals] = useState([]);
   const [recommendations, setRecommendations] = useState(mockRecommendations);
   const [transactionData, setTransactionData] = useState(mockTransactionData);
   const [uploadStatus, setUploadStatus] = useState("Ready");
@@ -112,11 +112,7 @@ export default function App() {
     }
 
     getGoals()
-      .then((loadedGoals) => {
-        if (loadedGoals.length) {
-          setGoals(loadedGoals.map(normalizeGoalStatus));
-        }
-      })
+      .then((loadedGoals) => setGoals(loadedGoals.map(normalizeGoalStatus)))
       .catch(() => setUploadStatus("API unavailable"));
 
     setIsLoadingRecs(true);

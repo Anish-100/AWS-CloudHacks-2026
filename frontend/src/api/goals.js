@@ -2,6 +2,11 @@ import { api } from "./client";
 
 const DATASET_ID = import.meta.env.VITE_DATASET_ID || import.meta.env.VITE_USER_ID || "demo";
 
+function withDataset(path) {
+  const params = new URLSearchParams({ dataset_id: DATASET_ID });
+  return `${path}?${params.toString()}`;
+}
+
 function normalizeGoal(goal) {
   if (!goal) {
     return goal;
@@ -33,13 +38,16 @@ function normalizeGoals(payload) {
 }
 
 export async function getGoals() {
-  return normalizeGoals(await api("/goals"));
+  return normalizeGoals(await api(withDataset("/goals")));
 }
 
 export async function createGoal(goal) {
   return normalizeGoal(await api("/goals", {
     method: "POST",
-    body: JSON.stringify(goal),
+    body: JSON.stringify({
+      dataset_id: goal.dataset_id || DATASET_ID,
+      ...goal,
+    }),
   }));
 }
 
@@ -54,7 +62,7 @@ export async function updateGoal(goalId, updates) {
 }
 
 export async function deleteGoal(goalId) {
-  return api(`/goals/${goalId}`, {
+  return api(withDataset(`/goals/${goalId}`), {
     method: "DELETE",
   });
 }
