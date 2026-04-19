@@ -1,5 +1,18 @@
 # Lambda Functions — Puran
 
+## When → Which Lambda
+
+| When this happens | Lambda(s) called (in order) |
+|-------------------|------------------------------|
+| User opens the app | `get_goal_data` → `get_suggestions_data` |
+| User uploads a CSV | `get_presigned_url` → *(S3 trigger)* `update_financial_data` → `get_financial_data` |
+| User creates a goal | `post_goal_data` |
+| User updates goal progress | `put_goal_data` |
+| User deletes a goal | `delete_goal_data` |
+| App generates AI suggestions | `ask_bedrock_to_categorize` |
+| User accepts a suggestion | `post_suggestion_input` |
+| User rejects a suggestion | `post_suggestion_input` (deletes non-taken suggestions) |
+
 ---
 
 ## All Lambdas

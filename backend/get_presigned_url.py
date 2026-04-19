@@ -18,7 +18,7 @@ def lambda_handler(event, context):
 
     upload_url = s3.generate_presigned_url(
         'put_object',
-        Params={'Bucket': BUCKET, 'Key': key, 'ContentType': content_type},
+        Params={'Bucket': BUCKET, 'Key': key},
         ExpiresIn=EXPIRY,
     )
 

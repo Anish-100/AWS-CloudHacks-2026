@@ -14,9 +14,6 @@ export async function requestUpload(file) {
 export async function uploadToS3(uploadUrl, file) {
   const response = await fetch(uploadUrl, {
     method: "PUT",
-    headers: {
-      "Content-Type": file.type || "text/csv",
-    },
     body: file,
   });
 

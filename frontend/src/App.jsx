@@ -181,13 +181,9 @@ export default function App() {
 
       setUploadStatus("Uploading to S3");
       await uploadToS3(uploadUrl, file);
-      setUploadStatus("Updating financial data");
-      await uploadFinancialData(file);
-      setUploadStatus("Loading user data");
-      await getUserData();
       setUploadStatus("Processing");
       await new Promise((resolve) => setTimeout(resolve, 3000));
-      await pollStatus(batchId);
+      setUploadStatus("Upload complete");
     } catch (error) {
       setUploadStatus(`Upload failed: ${error.message}`);
     }
