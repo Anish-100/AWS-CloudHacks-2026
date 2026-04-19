@@ -9,7 +9,6 @@
 | User creates a goal | `post_goal_data` |
 | User updates goal progress | `put_goal_data` |
 | User deletes a goal | `delete_goal_data` |
-| App generates AI suggestions | `ask_bedrock_to_categorize` |
 | User accepts a suggestion | `post_suggestion_input` |
 | User rejects a suggestion | `post_suggestion_input` (deletes non-taken suggestions) |
 
@@ -26,7 +25,6 @@
 | `get_goal_data` | `get_goal_data.py` | GET | `/goals` | API Gateway |
 | `put_goal_data` | `put_goal_data.py` | PUT | `/goals/{goalId}` | API Gateway |
 | `delete_goal_data` | `delete_goal_data.py` | DELETE | `/goals/{goalId}` | API Gateway |
-| `ask_bedrock_to_categorize` | `ask_bedrock_to_categorize.py` | POST | `/bedrock-categorize` | API Gateway |
 | `get_financial_data` | `get_financial_data.py` | GET | `/user-data` | API Gateway |
 | `get_suggestions_data` | `get_suggestions_data.py` | GET | `/suggestions` | API Gateway |
 | `post_suggestion_input` | `post_suggestion_input.py` | POST | `/suggestions` | API Gateway |
