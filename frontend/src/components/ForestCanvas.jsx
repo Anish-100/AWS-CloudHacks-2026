@@ -1,5 +1,143 @@
+import { useMemo } from "react";
+
 import moneyTree from "../Images/tree-icon-in-pixel-art-png.png";
 import burntMoneyTree from "../Images/burntTree.png";
+
+const FOREST_POSITION_STORAGE_KEY = "puran.forest.positions.v1";
+const POSITION_ATTEMPTS = 90;
+const MIN_TREE_SPACING_X = 17;
+const MIN_TREE_SPACING_Y = 24;
+const FIELD_MIN_X = 11;
+const FIELD_MAX_X = 89;
+const FIELD_MIN_Y = 15;
+const FIELD_MAX_Y = 83;
+
+function getGoalKey(goal, index) {
+  return goal.goalId || `${goal.title || "goal"}-${goal.deadline || index}`;
+}
+
+function hashString(value) {
+  return [...String(value)].reduce((hash, char) => {
+    return (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }, 2166136261);
+}
+
+function createRandom(seed) {
+  let state = hashString(seed) || 1;
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function readStoredPositions() {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    return JSON.parse(window.localStorage.getItem(FOREST_POSITION_STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredPositions(positions) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(FOREST_POSITION_STORAGE_KEY, JSON.stringify(positions));
+  } catch {
+    // The board can still render with in-memory positions if storage is unavailable.
+  }
+}
+
+function isOpenPosition(position, occupied) {
+  return occupied.every((item) => {
+    const xGap = Math.abs(position.x - item.x);
+    const yGap = Math.abs(position.y - item.y);
+
+    return xGap >= MIN_TREE_SPACING_X || yGap >= MIN_TREE_SPACING_Y;
+  });
+}
+
+function isOnField(position) {
+  return (
+    position.x >= FIELD_MIN_X &&
+    position.x <= FIELD_MAX_X &&
+    position.y >= FIELD_MIN_Y &&
+    position.y <= FIELD_MAX_Y
+  );
+}
+
+function createTreePosition(goalKey, occupied) {
+  const random = createRandom(goalKey);
+  let bestPosition = null;
+  let bestScore = -1;
+
+  for (let attempt = 0; attempt < POSITION_ATTEMPTS; attempt += 1) {
+    const position = {
+      x: FIELD_MIN_X + random() * (FIELD_MAX_X - FIELD_MIN_X),
+      y: FIELD_MIN_Y + random() * (FIELD_MAX_Y - FIELD_MIN_Y),
+    };
+
+    if (!isOnField(position)) {
+      continue;
+    }
+
+    if (isOpenPosition(position, occupied)) {
+      return position;
+    }
+
+    const nearestNeighbor = occupied.reduce((nearest, item) => {
+      const xGap = Math.abs(position.x - item.x) / MIN_TREE_SPACING_X;
+      const yGap = Math.abs(position.y - item.y) / MIN_TREE_SPACING_Y;
+      return Math.min(nearest, Math.hypot(xGap, yGap));
+    }, Number.POSITIVE_INFINITY);
+
+    if (nearestNeighbor > bestScore) {
+      bestScore = nearestNeighbor;
+      bestPosition = position;
+    }
+  }
+
+  return bestPosition || { x: 50, y: 52 };
+}
+
+function getForestPositions(goals) {
+  const storedPositions = readStoredPositions();
+  const nextPositions = {};
+  const occupied = [];
+
+  goals.forEach((goal, index) => {
+    const goalKey = getGoalKey(goal, index);
+    const storedPosition = storedPositions[goalKey];
+
+    if (storedPosition && isOnField(storedPosition) && isOpenPosition(storedPosition, occupied)) {
+      occupied.push(storedPosition);
+      nextPositions[goalKey] = storedPosition;
+    }
+  });
+
+  goals.forEach((goal, index) => {
+    const goalKey = getGoalKey(goal, index);
+
+    if (nextPositions[goalKey]) {
+      return;
+    }
+
+    const position = createTreePosition(goalKey, occupied);
+    occupied.push(position);
+    nextPositions[goalKey] = position;
+  });
+
+  writeStoredPositions(nextPositions);
+
+  return nextPositions;
+}
 
 function getGoalProgress(goal) {
   const target = Number(goal.targetAmount || 0);
@@ -12,11 +150,14 @@ function getGoalProgress(goal) {
   return Math.min(Math.max(current / target, 0), 1);
 }
 
-function buildForest(goals) {
-  return goals.map((goal) => {
+function buildForest(goals, positions) {
+  return goals.map((goal, index) => {
+    const goalKey = getGoalKey(goal, index);
     const progress = getGoalProgress(goal);
     const intensity = goal.status === "pending" ? Math.max(0.12, 1 - progress) : 0;
     const fireStyle = {
+      "--tree-x": `${positions[goalKey]?.x ?? 50}%`,
+      "--tree-y": `${positions[goalKey]?.y ?? 50}%`,
       "--fire-intensity": intensity,
       "--fire-opacity": 0.2 + intensity * 0.8,
       "--fire-blur": `${(1 - intensity) * 0.7}px`,
@@ -41,6 +182,7 @@ function buildForest(goals) {
     return {
       ...goal,
       image: goal.status === "failed" ? burntMoneyTree : moneyTree,
+      goalKey,
       label: goal.status === "failed" ? `${goal.title} failed` : `${goal.title} money tree`,
       progress,
       intensity,
@@ -50,7 +192,8 @@ function buildForest(goals) {
 }
 
 export default function ForestCanvas({ goals }) {
-  const forest = buildForest(goals);
+  const positions = useMemo(() => getForestPositions(goals), [goals]);
+  const forest = buildForest(goals, positions);
   const achieved = goals.filter((goal) => goal.status === "achieved").length;
   const pending = goals.filter((goal) => goal.status === "pending").length;
   const failed = goals.filter((goal) => goal.status === "failed").length;
@@ -58,10 +201,7 @@ export default function ForestCanvas({ goals }) {
   return (
     <section className="forest-panel">
       <div className="forest-image" aria-hidden="true">
-        <img
-          src="https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1200&q=80"
-          alt=""
-        />
+        <span className="pixel-island" />
       </div>
       <div className="forest-content">
         <div className="section-heading">
@@ -77,7 +217,7 @@ export default function ForestCanvas({ goals }) {
 
               return (
                 <figure
-                  key={tree.goalId || `${tree.title}-${tree.deadline}`}
+                  key={tree.goalKey}
                   className={`money-tree ${tree.status}`}
                   style={tree.fireStyle}
                   aria-label={`${tree.label}, ${progressPercent}% complete`}
