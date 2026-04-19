@@ -3,7 +3,6 @@ import json
 import os
 import uuid
 from decimal import Decimal
-from collections import defaultdict
 from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource('dynamodb')
@@ -13,7 +12,7 @@ suggestions_table = dynamodb.Table(os.environ.get('SUGGESTIONS_TABLE', 'Suggesti
 DATASET_ID = os.environ.get('DATASET_ID', 'demo')
 
 bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-MODEL_ID = 'us.amazon.nova-micro-v1:0'
+MODEL_ID = 'anthropic.claude-3-haiku-20240307-v1:0'
 
 CORS_HEADERS = {
     'Content-Type': 'application/json',
@@ -29,17 +28,16 @@ def lambda_handler(event, context):
 
     dataset_id = (event.get('queryStringParameters') or {}).get('datasetId', DATASET_ID)
 
-    # 1. Get transactions — summarize spending by category
+    # 1. Get transactions — pass raw rows to Bedrock
     txn_resp = transactions_table.query(
         KeyConditionExpression=Key('PK').eq(f'DATASET#{dataset_id}')
     )
-    spending = defaultdict(float)
-    for item in txn_resp.get('Items', []):
-        if item.get('entityType') == 'TRANSACTION' and item.get('Type', '').lower() == 'sale':
-            category = item.get('Category', 'Other')
-            spending[category] += abs(float(item.get('Amount', 0)))
-
-    spending_summary = ', '.join(f"{k}: ${v:.2f}" for k, v in sorted(spending.items(), key=lambda x: -x[1]))
+    rows = [
+        f"{item.get('TransactionDate')} | {item.get('Category', 'Other')} | {item.get('Description', '')} | ${float(item.get('Amount', 0)):.2f}"
+        for item in txn_resp.get('Items', [])
+        if item.get('entityType') == 'TRANSACTION'
+    ]
+    spending_summary = '\n'.join(rows) if rows else 'No transactions found'
 
     # 2. Get active goals
     goals_resp = goals_table.query(
@@ -54,10 +52,10 @@ def lambda_handler(event, context):
 
     # 3. Call Bedrock
     prompt = (
-        f"You are a personal finance advisor.\n"
-        f"Spending by category: {spending_summary or 'No data'}.\n"
-        f"Active savings goals: {goals_summary}.\n\n"
-        f"Give 3-5 specific, actionable recommendations to help reach these goals.\n"
+        f"You are a personal finance advisor analyzing real transaction data.\n\n"
+        f"Transactions (date | category | description | amount):\n{spending_summary}\n\n"
+        f"Active savings goals: {goals_summary}\n\n"
+        f"Based on the transaction patterns above, give 3-5 specific, actionable recommendations to help reach these goals.\n"
         f"Return ONLY valid JSON: {{\"recommendations\": [{{\"action\": \"...\", \"category\": \"...\", \"monthly_saving\": 0}}]}}"
     )
 
@@ -66,12 +64,13 @@ def lambda_handler(event, context):
         contentType='application/json',
         accept='application/json',
         body=json.dumps({
+            'anthropic_version': 'bedrock-2023-05-31',
+            'max_tokens': 1024,
             'messages': [{'role': 'user', 'content': prompt}],
-            'inferenceConfig': {'maxNewTokens': 512},
         }),
     )
     raw = json.loads(br_response['body'].read())
-    text = raw['output']['message']['content'][0]['text']
+    text = raw['content'][0]['text']
 
     # Extract JSON from response
     start = text.find('{')
