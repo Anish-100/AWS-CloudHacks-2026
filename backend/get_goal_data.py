@@ -25,6 +25,7 @@ def lambda_handler(event, context):
 
     goals = [
         {
+            'goalId':         item.get('goalId', item['SK'].split('#')[-1]),
             'description':    item['Description'],
             'category':       item['Category'],
             'specs':          item.get('Specs', ''),
