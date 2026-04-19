@@ -6,7 +6,6 @@ import { getUploadStatus, getUserData, requestUpload, uploadFinancialData, uploa
 import AnalyticsPanel from "./components/AnalyticsPanel.jsx";
 import AppShell from "./components/AppShell.jsx";
 import CsvUploader from "./components/CsvUploader.jsx";
-import FireTrailCursor from "./components/FireTrailCursor.jsx";
 import ForestCanvas from "./components/ForestCanvas.jsx";
 import GoalForm from "./components/GoalForm.jsx";
 import GoalsDashboard from "./components/GoalsDashboard.jsx";
@@ -201,7 +200,6 @@ export default function App() {
 
   return (
     <AppShell apiMode={apiMode} uploadStatus={uploadStatus}>
-      <FireTrailCursor />
       <main className="dashboard-grid">
         <div className="left-rail">
           <CsvUploader onUpload={handleUpload} />
