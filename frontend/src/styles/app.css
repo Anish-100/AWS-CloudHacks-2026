@@ -183,7 +183,7 @@ button:hover {
 .recommendations-panel,
 .goal-form,
 .goals-dashboard,
-.quicksight-panel {
+.analytics-panel {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: rgba(24, 29, 27, 0.92);
@@ -618,21 +618,71 @@ input[type="number"] {
   }
 }
 
-.quicksight-panel iframe,
-.quicksight-placeholder {
-  width: 100%;
-  height: 420px;
-  border: 0;
+.analytics-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.analytics-summary div,
+.chart-surface {
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: #101412;
 }
 
-.quicksight-placeholder {
+.analytics-summary div {
   display: grid;
-  place-items: center;
-  padding: 18px;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.analytics-summary span {
   color: var(--color-muted);
-  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.analytics-summary strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.75fr);
+  gap: 10px;
+}
+
+.chart-surface {
+  min-width: 0;
+  min-height: 320px;
+  padding: 14px;
+}
+
+.chart-surface h3 {
+  margin: 0 0 10px;
+  color: var(--color-muted-strong);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.recharts-wrapper text {
+  fill: var(--color-muted-strong);
+}
+
+.recharts-default-tooltip,
+.recharts-tooltip-label {
+  color: var(--color-text);
 }
 
 @media (max-width: 1120px) {
@@ -681,6 +731,11 @@ input[type="number"] {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-summary,
+  .analytics-grid {
     grid-template-columns: 1fr;
   }
 }

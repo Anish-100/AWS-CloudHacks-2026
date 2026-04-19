@@ -10,11 +10,16 @@ export async function api(path, options = {}) {
     throw new Error("Missing VITE_API_URL");
   }
 
+  const headers = {
+    ...(options.headers || {}),
+  };
+
+  if (options.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
     ...options,
   });
 

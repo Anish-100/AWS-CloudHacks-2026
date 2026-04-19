@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { hasApiBaseUrl } from "./api/client.js";
 import { createGoal, deleteGoal, getGoals, updateGoal } from "./api/goals.js";
-import { getQuickSightEmbedUrl } from "./api/quicksight.js";
 import { getRecommendations } from "./api/recommendations.js";
-import { getUploadStatus, requestUpload, uploadToS3 } from "./api/upload.js";
+import { getUploadStatus, postUserData, requestUpload, uploadToS3 } from "./api/upload.js";
+import AnalyticsPanel from "./components/AnalyticsPanel.jsx";
 import AppShell from "./components/AppShell.jsx";
 import CsvUploader from "./components/CsvUploader.jsx";
 import FireTrailCursor from "./components/FireTrailCursor.jsx";
 import ForestCanvas from "./components/ForestCanvas.jsx";
 import GoalForm from "./components/GoalForm.jsx";
 import GoalsDashboard from "./components/GoalsDashboard.jsx";
-import QuickSightPanel from "./components/QuickSightPanel.jsx";
 import RecommendationsPanel from "./components/RecommendationsPanel.jsx";
 import { mockGoals, mockRecommendations } from "./data/mockData.js";
 
@@ -56,10 +55,8 @@ function normalizeGoalStatus(goal) {
 export default function App() {
   const [goals, setGoals] = useState(() => mockGoals.map(normalizeGoalStatus));
   const [recommendations, setRecommendations] = useState(mockRecommendations);
-  const [quickSightUrl, setQuickSightUrl] = useState("");
   const [uploadStatus, setUploadStatus] = useState("Ready");
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
-  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const apiEnabled = hasApiBaseUrl();
 
   const apiMode = useMemo(() => (apiEnabled ? "API connected" : "Mock mode"), [apiEnabled]);
@@ -82,12 +79,6 @@ export default function App() {
       .then(setRecommendations)
       .catch(() => setRecommendations(mockRecommendations))
       .finally(() => setIsLoadingRecs(false));
-
-    setIsLoadingDashboard(true);
-    getQuickSightEmbedUrl()
-      .then((payload) => setQuickSightUrl(payload?.embedUrl || ""))
-      .catch(() => setQuickSightUrl(""))
-      .finally(() => setIsLoadingDashboard(false));
   }, [apiEnabled]);
 
   async function handleCreateGoal(goal) {
@@ -190,10 +181,17 @@ export default function App() {
 
       setUploadStatus("Uploading to S3");
       await uploadToS3(uploadUrl, file);
+      setUploadStatus("Saving user data");
+      await postUserData({
+        batchId,
+        fileName: file.name,
+        contentType: file.type || "text/csv",
+      });
       setUploadStatus("Processing");
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       await pollStatus(batchId);
-    } catch {
-      setUploadStatus("Upload failed");
+    } catch (error) {
+      setUploadStatus(`Upload failed: ${error.message}`);
     }
   }
 
@@ -208,7 +206,7 @@ export default function App() {
 
         <div className="center-stage">
           <ForestCanvas goals={goals} />
-          <QuickSightPanel embedUrl={quickSightUrl} isLoading={isLoadingDashboard} />
+          <AnalyticsPanel goals={goals} recommendations={recommendations} />
         </div>
 
         <aside className="right-rail">

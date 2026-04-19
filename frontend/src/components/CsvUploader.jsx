@@ -31,7 +31,7 @@ export default function CsvUploader({ onUpload }) {
       </div>
       <p>
         Upload the UCI finance CSV, then Puran will send it through S3, Lambda,
-        Bedrock, DynamoDB, and QuickSight.
+        Bedrock, DynamoDB, and the React analytics dashboard.
       </p>
       <input
         ref={inputRef}
