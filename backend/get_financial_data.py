@@ -7,6 +7,12 @@ from boto3.dynamodb.conditions import Key
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TRANSACTIONS_TABLE"])
 DEFAULT_DATASET_ID = os.environ.get("DATASET_ID", "demo")
+CORS_HEADERS = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "OPTIONS,GET"
+}
 
 def decimal_to_float(value):
     if isinstance(value, Decimal):
@@ -23,16 +29,25 @@ def parse_transaction_date(item):
     return None
 
 def lambda_handler(event, context):
+    if event.get("httpMethod") == "OPTIONS":
+        return {"statusCode": 200, "headers": CORS_HEADERS, "body": "{}"}
+
     params = event.get("queryStringParameters") or {}
-    dataset_id = params.get("datasetId", DEFAULT_DATASET_ID)
+    dataset_id = params.get("datasetId") or params.get("dataset_id") or DEFAULT_DATASET_ID
 
     pk = f"DATASET#{dataset_id}"
 
-    response = table.query(
-        KeyConditionExpression=Key("PK").eq(pk)
-    )
+    items = []
+    query_kwargs = {"KeyConditionExpression": Key("PK").eq(pk)}
+    while True:
+        response = table.query(**query_kwargs)
+        items.extend(response.get("Items", []))
 
-    items = response.get("Items", [])
+        last_key = response.get("LastEvaluatedKey")
+        if not last_key:
+            break
+
+        query_kwargs["ExclusiveStartKey"] = last_key
 
     transactions = [
         {
@@ -51,11 +66,6 @@ def lambda_handler(event, context):
 
     return {
         "statusCode": 200,
-        "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Methods": "OPTIONS,GET"
-        },
+        "headers": CORS_HEADERS,
         "body": json.dumps({"datasetId": dataset_id, "transactions": transactions})
     }

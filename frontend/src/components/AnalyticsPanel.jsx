@@ -39,10 +39,12 @@ function normalizeRecommendationList(recommendations) {
 function computeMonthlySpending(transactions) {
   const totals = {};
   for (const tx of transactions) {
-    if (tx.amount >= 0) continue;
+    const amount = Number(tx.amount || 0);
+    const isExpense = amount < 0 || String(tx.type || "").toLowerCase() === "sale";
+    if (!isExpense) continue;
     const month = tx.date?.slice(0, 7);
     if (!month) continue;
-    totals[month] = (totals[month] || 0) + Math.abs(tx.amount);
+    totals[month] = (totals[month] || 0) + Math.abs(amount);
   }
   return Object.entries(totals)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -55,12 +57,14 @@ function computeCategoryInsights(transactions) {
   // Group spending by month and category
   const byMonthCategory = {};
   for (const tx of transactions) {
-    if (tx.amount >= 0) continue;
+    const amount = Number(tx.amount || 0);
+    const isExpense = amount < 0 || String(tx.type || "").toLowerCase() === "sale";
+    if (!isExpense) continue;
     const month = tx.date?.slice(0, 7);
     const category = tx.category || "Other";
     if (!month || !category) continue;
     if (!byMonthCategory[month]) byMonthCategory[month] = {};
-    byMonthCategory[month][category] = (byMonthCategory[month][category] || 0) + Math.abs(tx.amount);
+    byMonthCategory[month][category] = (byMonthCategory[month][category] || 0) + Math.abs(amount);
   }
 
   const months = Object.keys(byMonthCategory).sort();

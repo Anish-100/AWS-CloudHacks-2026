@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { hasApiBaseUrl } from "./api/client.js";
+import { getFinancialData } from "./api/financialData.js";
 import { createGoal, deleteGoal, getGoals, updateGoal } from "./api/goals.js";
 import {
   acceptRecommendation,
@@ -7,7 +8,7 @@ import {
   getRecommendations,
   rejectRecommendation,
 } from "./api/recommendations.js";
-import { getUploadStatus, getUserData, requestUpload, uploadFinancialData, uploadToS3 } from "./api/upload.js";
+import { getUploadStatus, requestUpload, uploadToS3 } from "./api/upload.js";
 import AnalyticsPanel from "./components/AnalyticsPanel.jsx";
 import AppShell from "./components/AppShell.jsx";
 import CsvUploader from "./components/CsvUploader.jsx";
@@ -106,14 +107,14 @@ function applySavingsToGoal(goal, savings) {
 }
 
 export default function App() {
+  const apiEnabled = hasApiBaseUrl();
   const [goals, setGoals] = useState([]);
   const [recommendations, setRecommendations] = useState(mockRecommendations);
-  const [transactionData, setTransactionData] = useState(mockTransactionData);
+  const [transactionData, setTransactionData] = useState(() => (apiEnabled ? { transactions: [] } : mockTransactionData));
   const [uploadStatus, setUploadStatus] = useState("Ready");
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
   const [acceptedAdvice, setAcceptedAdvice] = useState([]);
   const [rejectedAdvice, setRejectedAdvice] = useState([]);
-  const apiEnabled = hasApiBaseUrl();
 
   const apiMode = useMemo(() => (apiEnabled ? "API connected" : "Mock mode"), [apiEnabled]);
 
@@ -146,7 +147,7 @@ export default function App() {
       .catch(() => setRecommendations(mockRecommendations))
       .finally(() => setIsLoadingRecs(false));
 
-    getUserData()
+    getFinancialData()
       .then(setTransactionData)
       .catch(() => console.error("Failed to load transaction data"));
   }, [apiEnabled]);
@@ -324,8 +325,8 @@ export default function App() {
       setUploadStatus("Processing");
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      const datasetId = upload?.key?.split("/")[1];
-      getUserData(datasetId)
+      const datasetId = upload?.datasetId || upload?.dataset_id || upload?.key?.split("/")[1];
+      getFinancialData(datasetId)
         .then(setTransactionData)
         .catch(() => console.error("Failed to refresh transaction data"));
 
