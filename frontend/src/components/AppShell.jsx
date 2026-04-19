@@ -5,8 +5,8 @@ export default function AppShell({ apiMode, uploadStatus, children }) {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar__brand">
-          <img src={logo} alt="Pyran logo" className="topbar__logo" style={{ height: "30px", width: "auto" }} />
-          <p className="eyebrow">Pyran</p>
+          <img src={logo} alt="Puran logo" className="topbar__logo" style={{ height: "30px", width: "auto" }} />
+          <p className="eyebrow">Puran</p>
           <div>
             <h1>Short-term financial planner</h1>
           </div>
