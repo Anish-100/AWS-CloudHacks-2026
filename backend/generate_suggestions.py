@@ -108,12 +108,11 @@ def store_recommendations(dataset_id, recommendations):
                 'SK': f'SUGGESTION#{sid}',
                 'category': rec.get('category', 'General'),
                 'action': rec.get('action', ''),
-                'monthly_saving': Decimal(str(monthly_saving)),
-                'taken': False,
-            }
-            batch.put_item(Item=item)
+                'monthly_saving': Decimal(str(rec.get('monthly_saving', 0))),
+                'taken': None,
+            })
             new_suggestions.append({
-                'suggestion_id': item['SK'],
+                 'suggestion_id': item['SK'],
                 'category': item['category'],
                 'action': item['action'],
                 'monthly_saving': float(monthly_saving),

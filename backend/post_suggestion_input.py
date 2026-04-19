@@ -9,8 +9,11 @@ from boto3.dynamodb.conditions import Key
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ.get('SUGGESTIONS_TABLE', 'Suggestions'))
 goals_table = dynamodb.Table(os.environ.get('GOALS_TABLE', 'UserGoals'))
+transactions_table = dynamodb.Table(os.environ.get('TRANSACTIONS_TABLE', 'FinancialTransactions'))
+bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
 
 DATASET_ID = os.environ.get('DATASET_ID', 'demo')
+BEDROCK_MODEL_ID = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-haiku-20240307-v1:0')
 
 
 def api_response(status_code, body):
@@ -86,6 +89,94 @@ def apply_saving_to_nearest_goal(dataset_id, monthly_saving):
     }
 
 
+def extract_bedrock_text(response):
+    payload = json.loads(response['body'].read())
+    return payload['content'][0]['text'].strip()
+
+
+def parse_suggestions_json(text):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        raise
+
+
+def build_goal_context(dataset_id):
+    goals = sorted(query_open_goals(dataset_id), key=lambda item: parse_date(item.get('EndDate')))[:3]
+    if not goals:
+        return 'No active savings goals.'
+    lines = []
+    for goal in goals:
+        lines.append(
+            f"- {goal.get('Description', 'Goal')}: "
+            f"${float(goal.get('AmountSaved', 0)):.0f} saved of "
+            f"${float(goal.get('TotalAmount', 0)):.0f}, due {goal.get('EndDate', 'unknown')}"
+        )
+    return '\n'.join(lines)
+
+
+def build_spending_context(dataset_id):
+    resp = transactions_table.query(
+        KeyConditionExpression=Key('PK').eq(f'DATASET#{dataset_id}')
+    )
+    rows = [
+        f"{item.get('TransactionDate')} | {item.get('Category', 'Other')} | {item.get('Description', '')} | ${float(item.get('Amount', 0)):.2f}"
+        for item in resp.get('Items', [])
+        if item.get('entityType') == 'TRANSACTION'
+    ]
+    return '\n'.join(rows) if rows else 'No transaction history available.'
+
+
+def generate_replacement_suggestions(dataset_id, accepted_action, category):
+    prompt = (
+        'You are a personal finance advisor for a student.\n'
+        f'The user just accepted this advice: "{accepted_action}" (category: {category or "General"}).\n\n'
+        f'Their spending history (date | category | description | amount):\n{build_spending_context(dataset_id)}\n\n'
+        f'Their active goals:\n{build_goal_context(dataset_id)}\n\n'
+        'Generate exactly 3 new specific, actionable suggestions to help them save more. '
+        'Do not repeat the accepted advice. '
+        'Return ONLY valid JSON: {"recommendations": [{"action": "...", "category": "...", "monthly_saving": 0}]}'
+    )
+
+    response = bedrock.invoke_model(
+        modelId=BEDROCK_MODEL_ID,
+        contentType='application/json',
+        accept='application/json',
+        body=json.dumps({
+            'anthropic_version': 'bedrock-2023-05-31',
+            'max_tokens': 1024,
+            'messages': [{'role': 'user', 'content': prompt}],
+        }),
+    )
+    parsed = parse_suggestions_json(extract_bedrock_text(response))
+    recommendations = parsed.get('recommendations', [])
+
+    new_suggestions = []
+    for rec in recommendations[:3]:
+        sid = str(uuid.uuid4())
+        item = {
+            'PK': f'DATASET#{dataset_id}',
+            'SK': f'SUGGESTION#{sid}',
+            'category': str(rec.get('category') or category or 'Savings'),
+            'action': str(rec.get('action') or 'Review your spending for opportunities to save.'),
+            'monthly_saving': Decimal(str(rec.get('monthly_saving') or 10)),
+            'taken': None,
+        }
+        table.put_item(Item=item)
+        new_suggestions.append({
+            'suggestion_id': f'SUGGESTION#{sid}',
+            'category': item['category'],
+            'action': item['action'],
+            'monthly_saving': float(item['monthly_saving']),
+            'taken': None,
+        })
+
+    return new_suggestions
+
+
 def lambda_handler(event, context):
     body = json.loads(event.get('body') or '{}')
     dataset_id = body.get('dataset_id', DATASET_ID)
@@ -116,13 +207,17 @@ def lambda_handler(event, context):
 
         if apply_to_nearest_goal:
             updated_goal = apply_saving_to_nearest_goal(dataset_id, monthly_saving)
-        message = 'Suggestion accepted and stored'
+
+        new_suggestions = generate_replacement_suggestions(dataset_id, action, category)
+        return api_response(200, {
+            'message': 'Suggestion accepted',
+            'suggestion_id': normalized_id,
+            'updatedGoal': updated_goal,
+            'newSuggestions': new_suggestions,
+        })
     else:
         table.delete_item(Key={'PK': pk, 'SK': sk})
-        message = 'Suggestion rejected'
-
-    return api_response(200, {
-        'message': message,
-        'suggestion_id': normalized_id,
-        'updatedGoal': updated_goal,
-    })
+        return api_response(200, {
+            'message': 'Suggestion rejected',
+            'suggestion_id': normalized_id,
+        })
