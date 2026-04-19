@@ -11,8 +11,7 @@
 | User deletes a goal | `delete_goal_data` |
 | User accepts a suggestion | `post_suggestion_input` |
 | User rejects a suggestion | `post_suggestion_input` (deletes non-taken suggestions) |
-
-> **Note:** Bedrock (Nova Micro) is reserved for a future recommendations Lambda — removed from CSV ingestion to avoid throttling.
+| User requests fresh suggestions | `generate_suggestions` |
 
 ---
 
@@ -30,6 +29,7 @@
 | `get_financial_data` | `get_financial_data.py` | GET | `/user-data` | API Gateway |
 | `get_suggestions_data` | `get_suggestions_data.py` | GET | `/suggestions` | API Gateway |
 | `post_suggestion_input` | `post_suggestion_input.py` | POST | `/suggestions` | API Gateway |
+| `generate_suggestions` | `generate_suggestions.py` | GET | `/suggestions/generate` | API Gateway |
 
 ---
 
@@ -118,6 +118,24 @@ Browser
 
 ---
 
+### 7. User Requests Fresh Suggestions
+
+```
+Browser
+  → GET /suggestions/generate?datasetId={id}
+      → generate_suggestions
+      │
+      ├─ DynamoDB FinancialTransactions query → summarize spending by category
+      ├─ DynamoDB UserGoals query             → list active goals
+      ├─ Bedrock Nova Micro                   → returns 3-5 recommendations JSON
+      ├─ DynamoDB Suggestions                 → delete old non-taken suggestions
+      └─ DynamoDB Suggestions                 → batch write new suggestions
+      
+      ← { dataset_id, suggestions: [...] }
+```
+
+---
+
 ### 6. User Accepts or Rejects a Suggestion
 
 ```
@@ -140,7 +158,7 @@ Browser
 |-------|----|----|---------|
 | `FinancialTransactions` | `DATASET#{userId}` | `TXN#{date}#{num}` | update_financial_data, get_financial_data |
 | `UserGoals` | `DATASET#{userId}` | `GOAL#{goalId}` | post_goal_data, get_goal_data, put_goal_data, delete_goal_data |
-| `Suggestions` | `DATASET#{userId}` | `SUGGESTION#{id}` | get_suggestions_data, post_suggestion_input |
+| `Suggestions` | `DATASET#{userId}` | `SUGGESTION#{id}` | get_suggestions_data, post_suggestion_input, generate_suggestions |
 
 ---
 
@@ -158,6 +176,7 @@ Browser
 | `get_financial_data` | `TRANSACTIONS_TABLE`, `DATASET_ID` |
 | `get_suggestions_data` | `SUGGESTIONS_TABLE`, `DATASET_ID` |
 | `post_suggestion_input` | `SUGGESTIONS_TABLE`, `DATASET_ID` |
+| `generate_suggestions` | `TRANSACTIONS_TABLE`, `GOALS_TABLE`, `SUGGESTIONS_TABLE`, `DATASET_ID` |
 
 ---
 
@@ -174,6 +193,7 @@ Browser
 | `get_financial_data` | `dynamodb:Query` on FinancialTransactions |
 | `get_suggestions_data` | `dynamodb:Query` on Suggestions |
 | `post_suggestion_input` | `dynamodb:PutItem`, `dynamodb:Query`, `dynamodb:BatchWriteItem` on Suggestions |
+| `generate_suggestions` | `dynamodb:Query` on FinancialTransactions + UserGoals, `dynamodb:Query` + `dynamodb:BatchWriteItem` + `dynamodb:DeleteItem` on Suggestions, `bedrock:InvokeModel` |
 
 ---
 
@@ -186,6 +206,7 @@ These need to be fixed in the AWS console, then redeploy the stage:
 | `/user-data` missing `GET` method | Add GET → integrate with `get_financial_data` |
 | `/goals/{goalId}` resource missing | Add resource + `PUT` → `put_goal_data`, `DELETE` → `delete_goal_data` |
 | `/upload-data` route is a leftover | Delete the resource entirely |
+| `/suggestions/generate` missing | Add `GET` → `generate_suggestions` |
 
 ---
 
