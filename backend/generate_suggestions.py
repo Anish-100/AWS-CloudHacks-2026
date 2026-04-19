@@ -15,7 +15,7 @@ suggestions_table = dynamodb.Table(os.environ.get('SUGGESTIONS_TABLE', 'Suggesti
 DATASET_ID = os.environ.get('DATASET_ID', 'demo')
 
 bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
-MODEL_ID = os.environ.get('BEDROCK_MODEL_ID', 'us.amazon.nova-micro-v1:0')
+MODEL_ID = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-haiku-20240307-v1:0')
 SUGGESTION_COUNT = 3
 
 CORS_HEADERS = {
@@ -28,7 +28,7 @@ CORS_HEADERS = {
 
 def extract_bedrock_text(response):
     payload = json.loads(response['body'].read())
-    return payload['output']['message']['content'][0]['text'].strip()
+    return payload['content'][0]['text'].strip()
 
 
 def parse_recommendations(text):
@@ -89,7 +89,7 @@ def delete_open_suggestions(dataset_id):
 
     with suggestions_table.batch_writer() as batch:
         for item in existing.get('Items', []):
-            if not item.get('taken', False):
+            if item.get('taken') is not True:
                 batch.delete_item(Key={'PK': item['PK'], 'SK': item['SK']})
 
 
@@ -110,13 +110,14 @@ def store_recommendations(dataset_id, recommendations):
                 'action': rec.get('action', ''),
                 'monthly_saving': Decimal(str(rec.get('monthly_saving', 0))),
                 'taken': None,
-            })
+            }
+            batch.put_item(Item=item)
             new_suggestions.append({
-                 'suggestion_id': item['SK'],
+                'suggestion_id': item['SK'],
                 'category': item['category'],
                 'action': item['action'],
                 'monthly_saving': float(monthly_saving),
-                'taken': False,
+                'taken': None,
             })
 
     return new_suggestions
@@ -144,8 +145,9 @@ def lambda_handler(event, context):
         contentType='application/json',
         accept='application/json',
         body=json.dumps({
-            'messages': [{'role': 'user', 'content': [{'text': prompt}]}],
-            'inferenceConfig': {'maxNewTokens': 512},
+            'anthropic_version': 'bedrock-2023-05-31',
+            'max_tokens': 1024,
+            'messages': [{'role': 'user', 'content': prompt}],
         }),
     )
 
