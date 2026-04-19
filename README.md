@@ -5,4 +5,4 @@ Ethan Nguyen
 Robert Ledoux
 Vineel Bhattiprolu
 
-## For the AWS CloudHacks Hackathon at UCI.
+## A better Short term Planner
