@@ -11,7 +11,7 @@ import ForestCanvas from "./components/ForestCanvas.jsx";
 import GoalForm from "./components/GoalForm.jsx";
 import GoalsDashboard from "./components/GoalsDashboard.jsx";
 import RecommendationsPanel from "./components/RecommendationsPanel.jsx";
-import { mockGoals, mockRecommendations } from "./data/mockData.js";
+import { mockGoals, mockRecommendations, mockTransactionData } from "./data/mockData.js";
 
 function withGeneratedGoalId(goal) {
   return {
@@ -55,6 +55,7 @@ function normalizeGoalStatus(goal) {
 export default function App() {
   const [goals, setGoals] = useState(() => mockGoals.map(normalizeGoalStatus));
   const [recommendations, setRecommendations] = useState(mockRecommendations);
+  const [transactionData, setTransactionData] = useState(mockTransactionData);
   const [uploadStatus, setUploadStatus] = useState("Ready");
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
   const apiEnabled = hasApiBaseUrl();
@@ -79,6 +80,10 @@ export default function App() {
       .then(setRecommendations)
       .catch(() => setRecommendations(mockRecommendations))
       .finally(() => setIsLoadingRecs(false));
+
+    getUserData()
+      .then(setTransactionData)
+      .catch(() => console.error("Failed to load transaction data"));
   }, [apiEnabled]);
 
   async function handleCreateGoal(goal) {
@@ -182,7 +187,12 @@ export default function App() {
       setUploadStatus("Uploading to S3");
       await uploadToS3(uploadUrl, file);
       setUploadStatus("Processing");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      getUserData()
+        .then(setTransactionData)
+        .catch(() => console.error("Failed to refresh transaction data"));
+
       setUploadStatus("Upload complete");
     } catch (error) {
       setUploadStatus(`Upload failed: ${error.message}`);
@@ -200,7 +210,7 @@ export default function App() {
 
         <div className="center-stage">
           <ForestCanvas goals={goals} />
-          <AnalyticsPanel goals={goals} recommendations={recommendations} />
+          <AnalyticsPanel goals={goals} recommendations={recommendations} transactionData={transactionData} />
         </div>
 
         <aside className="right-rail">
