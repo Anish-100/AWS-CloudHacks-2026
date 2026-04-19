@@ -306,7 +306,8 @@ export default function App() {
       setUploadStatus("Processing");
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      getUserData()
+      const datasetId = upload?.key?.split("/")[1];
+      getUserData(datasetId)
         .then(setTransactionData)
         .catch(() => console.error("Failed to refresh transaction data"));
 

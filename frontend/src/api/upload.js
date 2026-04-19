@@ -32,8 +32,9 @@ export async function uploadFinancialData(file) {
   });
 }
 
-export async function getUserData() {
-  return api("/user-data", {
+export async function getUserData(datasetId) {
+  const params = datasetId ? `?datasetId=${datasetId}` : "";
+  return api(`/user-data${params}`, {
     method: "GET",
   });
 }
