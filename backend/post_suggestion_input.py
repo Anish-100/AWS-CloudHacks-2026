@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -132,13 +134,20 @@ def build_spending_context(dataset_id):
 
 def generate_replacement_suggestions(dataset_id, accepted_action, category):
     prompt = (
-        'You are a personal finance advisor for a student.\n'
+        'You are a practical personal finance advisor for a student.\n'
         f'The user just accepted this advice: "{accepted_action}" (category: {category or "General"}).\n\n'
-        f'Their spending history (date | category | description | amount):\n{build_spending_context(dataset_id)}\n\n'
+        f'Past spending from their CSV (date | category | description | amount):\n{build_spending_context(dataset_id)}\n\n'
         f'Their active goals:\n{build_goal_context(dataset_id)}\n\n'
-        'Generate exactly 3 new specific, actionable suggestions to help them save more. '
+        'Generate exactly 3 new specific, actionable suggestions that tell the user how to save money '
+        'by avoiding, reducing, replacing, or delaying a spending habit shown in the CSV. '
+        'Each action must be behavior-based and tied to a past category, merchant, or transaction pattern. '
+        'Write actions like "Save $10 this week by packing lunch instead of buying Chipotle or Panda Express", '
+        'not like "Save $20 toward a new suit". '
+        'Do not suggest saving toward a goal item, buying cheaper versions of goal items, investing, budgeting apps, '
+        'or generic advice. '
         'Do not repeat the accepted advice. '
-        'Return ONLY valid JSON: {"recommendations": [{"action": "...", "category": "...", "monthly_saving": 0}]}'
+        'Each monthly_saving must be a positive exact integer in dollars, estimated from the past spending amounts. '
+        'Return ONLY valid JSON: {"recommendations": [{"action": "...", "category": "...", "monthly_saving": 25}]}'
     )
 
     response = bedrock.invoke_model(

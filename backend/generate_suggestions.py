@@ -2,7 +2,7 @@ import json
 import os
 import re
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from decimal import Decimal
 
 import boto3
@@ -46,21 +46,44 @@ def parse_recommendations(text):
     return recommendations
 
 
-def get_spending_summary(dataset_id):
+def clean_description(description):
+    return re.sub(r'\s+', ' ', str(description or '').strip()) or 'Unknown merchant'
+
+
+def get_spending_trends(dataset_id):
     txn_resp = transactions_table.query(
         KeyConditionExpression=Key('PK').eq(f'DATASET#{dataset_id}')
     )
 
-    spending = defaultdict(float)
+    spending_by_category = defaultdict(float)
+    count_by_category = Counter()
+    merchants_by_category = defaultdict(Counter)
+
     for item in txn_resp.get('Items', []):
         if item.get('entityType') == 'TRANSACTION' and item.get('Type', '').lower() == 'sale':
             category = item.get('Category', 'Other')
-            spending[category] += abs(float(item.get('Amount', 0)))
+            amount = abs(float(item.get('Amount', 0)))
+            spending_by_category[category] += amount
+            count_by_category[category] += 1
+            merchants_by_category[category][clean_description(item.get('Description'))] += 1
 
-    return ', '.join(
-        f'{category}: ${amount:.2f}'
-        for category, amount in sorted(spending.items(), key=lambda pair: -pair[1])[:6]
-    )
+    if not spending_by_category:
+        return 'No spending data'
+
+    lines = []
+    for category, amount in sorted(spending_by_category.items(), key=lambda pair: -pair[1])[:6]:
+        count = count_by_category[category]
+        average = amount / count if count else 0
+        examples = ', '.join(
+            merchant
+            for merchant, _ in merchants_by_category[category].most_common(4)
+        )
+        lines.append(
+            f'- {category}: ${amount:.2f} across {count} purchases '
+            f'(avg ${average:.2f}); examples: {examples}'
+        )
+
+    return '\n'.join(lines)
 
 
 def get_goals_summary(dataset_id):
@@ -132,10 +155,17 @@ def lambda_handler(event, context):
 
     prompt = (
         'You are a practical personal finance advisor for a student.\n'
-        f"Spending by category: {get_spending_summary(dataset_id) or 'No data'}.\n"
+        f"Past spending trends from the user's CSV:\n{get_spending_trends(dataset_id)}\n\n"
         f'Active savings goals: {get_goals_summary(dataset_id)}.\n\n'
-        f'Give exactly {SUGGESTION_COUNT} specific recommendations to help reach these goals. '
-        'Each recommendation must be quantifiable with a positive exact monthly_saving integer in dollars. '
+        f'Give exactly {SUGGESTION_COUNT} specific recommendations that tell the user how to save money '
+        'by avoiding, reducing, replacing, or delaying a spending habit shown in the CSV. '
+        'Each action must be behavior-based and tied to a past category or merchant trend. '
+        'Write actions like "Save $10 this week by packing lunch instead of buying Chipotle or Panda Express", '
+        'not like "Save $20 toward a new suit". '
+        'Do not suggest saving toward a goal item, buying cheaper versions of goal items, investing, budgeting apps, '
+        'or generic advice. '
+        'Each recommendation must be quantifiable with a positive exact monthly_saving integer in dollars, '
+        'estimated from the past spending amounts. '
         'Return ONLY valid JSON: '
         '{"recommendations":[{"action":"...","category":"...","monthly_saving":25}]}'
     )
