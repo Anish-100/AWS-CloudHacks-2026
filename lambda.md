@@ -9,9 +9,10 @@
 | User creates a goal | `post_goal_data` |
 | User updates goal progress | `put_goal_data` |
 | User deletes a goal | `delete_goal_data` |
-| App generates AI suggestions | `ask_bedrock_to_categorize` |
 | User accepts a suggestion | `post_suggestion_input` |
 | User rejects a suggestion | `post_suggestion_input` (deletes non-taken suggestions) |
+
+> **Note:** Bedrock (Nova Micro) is reserved for a future recommendations Lambda — removed from CSV ingestion to avoid throttling.
 
 ---
 
@@ -26,7 +27,6 @@
 | `get_goal_data` | `get_goal_data.py` | GET | `/goals` | API Gateway |
 | `put_goal_data` | `put_goal_data.py` | PUT | `/goals/{goalId}` | API Gateway |
 | `delete_goal_data` | `delete_goal_data.py` | DELETE | `/goals/{goalId}` | API Gateway |
-| `ask_bedrock_to_categorize` | `ask_bedrock_to_categorize.py` | POST | `/bedrock-categorize` | API Gateway |
 | `get_financial_data` | `get_financial_data.py` | GET | `/user-data` | API Gateway |
 | `get_suggestions_data` | `get_suggestions_data.py` | GET | `/suggestions` | API Gateway |
 | `post_suggestion_input` | `post_suggestion_input.py` | POST | `/suggestions` | API Gateway |
@@ -118,23 +118,7 @@ Browser
 
 ---
 
-### 6. Bedrock Generates Suggestions (called on login or manually)
-
-```
-Browser
-  → POST /bedrock-categorize
-      Body: { user_id, monthly_income }
-      → ask_bedrock_to_categorize
-          → DynamoDB FinancialTransactions  (fetch all transactions for user)
-          → DynamoDB UserGoals              (fetch first goal)
-          → Bedrock nova-micro-v1:0         (send spending summary prompt)
-          ← AI JSON: { patterns, suggestions, projections, sim_params }
-      ← { goal, spending_summary, patterns, suggestions, projections, sim_params }
-```
-
----
-
-### 7. User Accepts or Rejects a Suggestion
+### 6. User Accepts or Rejects a Suggestion
 
 ```
 Browser
@@ -154,8 +138,8 @@ Browser
 
 | Table | PK | SK | Used By |
 |-------|----|----|---------|
-| `FinancialTransactions` | `DATASET#{userId}` | `TXN#{date}#{num}` | upload_financial_data, update_financial_data, get_financial_data, ask_bedrock_to_categorize |
-| `UserGoals` | `DATASET#{userId}` | `GOAL#{goalId}` | post_goal_data, get_goal_data, put_goal_data, delete_goal_data, ask_bedrock_to_categorize |
+| `FinancialTransactions` | `DATASET#{userId}` | `TXN#{date}#{num}` | update_financial_data, get_financial_data |
+| `UserGoals` | `DATASET#{userId}` | `GOAL#{goalId}` | post_goal_data, get_goal_data, put_goal_data, delete_goal_data |
 | `Suggestions` | `DATASET#{userId}` | `SUGGESTION#{id}` | get_suggestions_data, post_suggestion_input |
 
 ---
@@ -171,10 +155,9 @@ Browser
 | `get_goal_data` | `GOALS_TABLE`, `DATASET_ID` |
 | `put_goal_data` | `GOALS_TABLE`, `DATASET_ID` |
 | `delete_goal_data` | `GOALS_TABLE`, `DATASET_ID` |
-| `get_financial_data` | `financial_transactions`, `DATASET_ID` |
+| `get_financial_data` | `TRANSACTIONS_TABLE`, `DATASET_ID` |
 | `get_suggestions_data` | `SUGGESTIONS_TABLE`, `DATASET_ID` |
 | `post_suggestion_input` | `SUGGESTIONS_TABLE`, `DATASET_ID` |
-| `ask_bedrock_to_categorize` | (uses hardcoded table names + us-west-2 region) |
 
 ---
 
@@ -192,7 +175,6 @@ Browser
 | `get_financial_data` | `dynamodb:Query` on FinancialTransactions |
 | `get_suggestions_data` | `dynamodb:Query` on Suggestions |
 | `post_suggestion_input` | `dynamodb:PutItem`, `dynamodb:Query`, `dynamodb:BatchWriteItem` on Suggestions |
-| `ask_bedrock_to_categorize` | `dynamodb:Query` on both tables, `bedrock:InvokeModel` |
 
 ---
 
