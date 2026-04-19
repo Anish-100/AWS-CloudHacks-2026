@@ -4,8 +4,8 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 
-dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
-table = dynamodb.Table('Suggestions')
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ.get('SUGGESTIONS_TABLE', 'Suggestions'))
 DATASET_ID = os.environ.get('DATASET_ID', 'demo')
 
 
@@ -19,7 +19,16 @@ def lambda_handler(event, context):
     monthly_saving = float(body.get('monthly_saving', 0))
 
     if not suggestion_id:
-        return {'statusCode': 400, 'body': json.dumps({'error': 'suggestion_id required'})}
+        return {
+            'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'OPTIONS,POST',
+            },
+            'body': json.dumps({'error': 'suggestion_id required'}),
+        }
 
     pk = f'DATASET#{dataset_id}'
     sk = f'SUGGESTION#{suggestion_id}'
@@ -35,7 +44,12 @@ def lambda_handler(event, context):
         })
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'OPTIONS,POST',
+            },
             'body': json.dumps({'message': 'Suggestion accepted and stored', 'suggestion_id': suggestion_id}),
         }
     else:
@@ -52,6 +66,11 @@ def lambda_handler(event, context):
 
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'OPTIONS,POST',
+            },
             'body': json.dumps({'message': f'Rejected — deleted {deleted} non-taken suggestions'}),
         }

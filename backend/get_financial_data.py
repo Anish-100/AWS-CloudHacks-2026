@@ -22,7 +22,7 @@ def parse_transaction_date(item):
         return parts[1]
     return None
 
-def get_user_data_handler(event, context):
+def lambda_handler(event, context):
     params = event.get("queryStringParameters") or {}
     dataset_id = params.get("datasetId", DEFAULT_DATASET_ID)
 
@@ -53,7 +53,9 @@ def get_user_data_handler(event, context):
         "statusCode": 200,
         "headers": {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Methods": "OPTIONS,GET"
         },
         "body": json.dumps({"datasetId": dataset_id, "transactions": transactions})
     }

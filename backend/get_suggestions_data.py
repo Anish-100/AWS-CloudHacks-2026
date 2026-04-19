@@ -4,8 +4,8 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 
-dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
-table = dynamodb.Table('Suggestions')
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ.get('SUGGESTIONS_TABLE', 'Suggestions'))
 DATASET_ID = os.environ.get('DATASET_ID', 'demo')
 
 
@@ -33,7 +33,12 @@ def lambda_handler(event, context):
 
     return {
         'statusCode': 200,
-        'headers': {'Content-Type': 'application/json'},
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Methods': 'OPTIONS,GET',
+        },
         'body': json.dumps({
             'dataset_id':    dataset_id,
             'suggestions':   suggestions,

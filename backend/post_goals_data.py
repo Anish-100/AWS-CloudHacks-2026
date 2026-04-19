@@ -47,6 +47,7 @@ def lambda_handler(event, context):
     success, failed = 0, 0
     for i in range(0, len(items), 25):
         batch = items[i:i+25]
+        batch_size = len(batch)
         retries = 3
         while batch and retries > 0:
             response = table.meta.client.batch_write_item(
@@ -59,7 +60,7 @@ def lambda_handler(event, context):
             if batch:
                 time.sleep(0.5)
                 retries -= 1
-        success += 25 - len(batch)
+        success += batch_size - len(batch)
         failed += len(batch)
 
     print(f"Done. Success: {success}, Failed: {failed}")
