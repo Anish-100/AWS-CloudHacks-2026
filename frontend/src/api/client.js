@@ -27,11 +27,26 @@ export async function api(path, options = {}) {
     return null;
   }
 
-  const payload = await response.json().catch(() => null);
+  let payload = await response.json().catch(() => null);
 
   if (!response.ok) {
     const message = payload?.detail || payload?.message || `API error ${response.status}`;
     throw new Error(message);
+  }
+
+  if (payload?.body && typeof payload.body === "string") {
+    const lambdaStatus = Number(payload.statusCode || response.status);
+
+    try {
+      payload = JSON.parse(payload.body);
+    } catch {
+      payload = payload.body;
+    }
+
+    if (lambdaStatus >= 400) {
+      const message = payload?.detail || payload?.message || payload?.error || `API error ${lambdaStatus}`;
+      throw new Error(message);
+    }
   }
 
   return payload;
