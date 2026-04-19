@@ -5,4 +5,5 @@ Ethan Nguyen
 Robert Ledoux
 Vineel Bhattiprolu
 
-## A better Short term Planner
+## Our Pitch
+You know when you doomscroll for 2 hours and regret 80% of it? We prevent that regret from how you spend your money! Puran sets near-term financial goals to help you spend on the things that you want.
