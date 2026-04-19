@@ -27,7 +27,11 @@ def parse_transaction_date(item):
 
 
 def lambda_handler(event, context):
+    if event.get("httpMethod") == "OPTIONS":
+        return {"statusCode": 200, "headers": CORS_HEADERS, "body": "{}"}
+
     params = event.get("queryStringParameters") or {}
+    dataset_id = params.get("datasetId") or params.get("dataset_id") or DEFAULT_DATASET_ID
     dataset_id = params.get("datasetId") or params.get("dataset_id") or DEFAULT_DATASET_ID
 
     pk = f"DATASET#{dataset_id}"
@@ -73,3 +77,4 @@ def lambda_handler(event, context):
             default=decimal_default,
         ),
     }
+

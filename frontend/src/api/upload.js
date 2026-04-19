@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { getFinancialData } from "./financialData";
 
 export async function requestUpload(file) {
   const params = new URLSearchParams({
@@ -33,10 +34,7 @@ export async function uploadFinancialData(file) {
 }
 
 export async function getUserData(datasetId) {
-  const params = datasetId ? `?datasetId=${datasetId}` : "";
-  return api(`/user-data${params}`, {
-    method: "GET",
-  });
+  return getFinancialData(datasetId);
 }
 
 export async function getUploadStatus(batchId) {
