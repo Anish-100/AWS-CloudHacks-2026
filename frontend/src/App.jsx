@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { hasApiBaseUrl } from "./api/client.js";
 import { createGoal, deleteGoal, getGoals, updateGoal } from "./api/goals.js";
-import { acceptRecommendation, getRecommendations, rejectRecommendation } from "./api/recommendations.js";
+import {
+  acceptRecommendation,
+  generateRecommendations,
+  getRecommendations,
+  rejectRecommendation,
+} from "./api/recommendations.js";
 import { getUploadStatus, getUserData, requestUpload, uploadFinancialData, uploadToS3 } from "./api/upload.js";
 import AnalyticsPanel from "./components/AnalyticsPanel.jsx";
 import AppShell from "./components/AppShell.jsx";
@@ -117,6 +122,18 @@ export default function App() {
     setGoals(loadedGoals.map(normalizeGoalStatus));
   }
 
+  async function refreshGeneratedRecommendations() {
+    try {
+      const nextRecommendations = await generateRecommendations();
+      setRecommendations(nextRecommendations);
+      setAcceptedAdvice([]);
+      setRejectedAdvice([]);
+    } catch (error) {
+      console.error("Failed to generate suggestions", error);
+      setRecommendations(await getRecommendations());
+    }
+  }
+
   useEffect(() => {
     if (!apiEnabled) {
       return;
@@ -125,8 +142,7 @@ export default function App() {
     refreshGoals().catch(() => setUploadStatus("API unavailable"));
 
     setIsLoadingRecs(true);
-    getRecommendations()
-      .then(setRecommendations)
+    refreshGeneratedRecommendations()
       .catch(() => setRecommendations(mockRecommendations))
       .finally(() => setIsLoadingRecs(false));
 
@@ -204,13 +220,12 @@ export default function App() {
     const suggestionId = recommendation.suggestion_id || recommendation.action;
     const savings = Number(recommendation.monthly_saving || 0);
     const nearestGoal = findNearestActiveGoal(goals);
+    const nearestGoalId = nearestGoal ? getGoalId(nearestGoal) : null;
+    const updatedGoal = nearestGoal && savings > 0 ? applySavingsToGoal(nearestGoal, savings) : null;
 
     setAcceptedAdvice((current) => [...new Set([...current, suggestionId])]);
 
-    if (nearestGoal && savings > 0) {
-      const updatedGoal = applySavingsToGoal(nearestGoal, savings);
-      const nearestGoalId = getGoalId(nearestGoal);
-
+    if (updatedGoal && nearestGoalId) {
       setGoals((current) => current.map((goal) => (getGoalId(goal) === nearestGoalId ? updatedGoal : goal)));
     }
 
@@ -220,6 +235,13 @@ export default function App() {
     }
 
     try {
+      if (updatedGoal && nearestGoalId) {
+        await updateGoal(nearestGoalId, {
+          currentAmount: updatedGoal.currentAmount,
+          status: updatedGoal.status,
+        });
+      }
+
       const response = await acceptRecommendation(recommendation);
       const serverGoal = response?.updatedGoal;
 
@@ -236,9 +258,7 @@ export default function App() {
         );
       }
 
-      getRecommendations()
-        .then(setRecommendations)
-        .catch(() => console.error("Failed to refresh suggestions"));
+      refreshGeneratedRecommendations().catch(() => console.error("Failed to refresh generated suggestions"));
 
       setUploadStatus("Advice accepted");
     } catch {
@@ -257,9 +277,7 @@ export default function App() {
 
     try {
       await rejectRecommendation(recommendation);
-      getRecommendations()
-        .then(setRecommendations)
-        .catch(() => console.error("Failed to refresh suggestions"));
+      refreshGeneratedRecommendations().catch(() => console.error("Failed to refresh generated suggestions"));
       setUploadStatus("Advice rejected");
     } catch {
       setUploadStatus("Could not reject advice");

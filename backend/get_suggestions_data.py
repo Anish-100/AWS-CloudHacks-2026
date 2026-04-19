@@ -1,8 +1,8 @@
 import json
 import os
+
 import boto3
 from boto3.dynamodb.conditions import Key
-from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ.get('SUGGESTIONS_TABLE', 'Suggestions'))
@@ -10,7 +10,8 @@ DATASET_ID = os.environ.get('DATASET_ID', 'demo')
 
 
 def lambda_handler(event, context):
-    dataset_id = (event.get('queryStringParameters') or {}).get('dataset_id', DATASET_ID)
+    params = event.get('queryStringParameters') or {}
+    dataset_id = params.get('dataset_id') or params.get('datasetId') or DATASET_ID
 
     response = table.query(
         KeyConditionExpression=Key('PK').eq(f'DATASET#{dataset_id}') & Key('SK').begins_with('SUGGESTION#')
@@ -18,15 +19,17 @@ def lambda_handler(event, context):
 
     suggestions = []
     total_savings = 0.0
-    for item in response['Items']:
+    for item in response.get('Items', []):
         taken = item.get('taken', False)
         monthly_saving = float(item.get('monthly_saving', 0))
         if taken:
             total_savings += monthly_saving
+            continue
+
         suggestions.append({
             'suggestion_id':  item['SK'],
-            'category':       item['category'],
-            'action':         item['action'],
+            'category':       item.get('category', 'Savings'),
+            'action':         item.get('action', ''),
             'monthly_saving': monthly_saving,
             'taken':          taken,
         })
@@ -41,7 +44,7 @@ def lambda_handler(event, context):
         },
         'body': json.dumps({
             'dataset_id':    dataset_id,
-            'suggestions':   suggestions,
+            'suggestions':   suggestions[:3],
             'total_savings': round(total_savings, 2),
         }),
     }
