@@ -30,8 +30,7 @@ export default function CsvUploader({ onUpload }) {
         <h2>Drop transactions here.</h2>
       </div>
       <p>
-        Upload the UCI finance CSV, then Puran will send it through S3, Lambda,
-        Bedrock, DynamoDB, and the React analytics dashboard.
+        Upload your financial transaction history and Puran will help you reach your financial goals!
       </p>
       <input
         ref={inputRef}
