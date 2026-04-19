@@ -16,18 +16,8 @@ def parse_date(raw: str) -> str:
     return datetime.strptime(raw.strip(), '%m/%d/%Y').strftime('%Y-%m-%d')
 
 def extract_dataset_id(key: str) -> str:
-    """
-    Based on the image path: demo/2981645c-e18b-4ce4-a03d-829e145abfad/uci_student_finance.csv
-    The ID is the second folder segment (index 1).
-    """
     parts = key.split('/')
-    # If the path is demo/UUID/file.csv, parts[1] is the UUID
-    if len(parts) >= 3:
-        return parts[1]
-    # Fallback to the first part if the structure is shorter
-    if len(parts) >= 2:
-        return parts[0]
-    return os.environ.get('USER_ID', 'demo')
+    return parts[0] if parts else os.environ.get('USER_ID', 'demo')
 
 def lambda_handler(event, context):
     # 1. Parse S3 Event details
