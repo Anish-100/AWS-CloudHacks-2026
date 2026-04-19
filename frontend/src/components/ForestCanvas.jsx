@@ -1,5 +1,5 @@
-import moneyTree from "../Images/pyranMoneyTree.png";
-import burntMoneyTree from "../Images/pyranMoneyTreeBurnt.png";
+import moneyTree from "../Images/tree-icon-in-pixel-art-png.png";
+import burntMoneyTree from "../Images/burntTree.png";
 
 function getGoalProgress(goal) {
   const target = Number(goal.targetAmount || 0);

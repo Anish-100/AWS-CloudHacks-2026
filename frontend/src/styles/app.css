@@ -36,43 +36,6 @@ body {
     linear-gradient(135deg, var(--color-charcoal) 0%, #17221b 48%, var(--color-deep-green) 100%);
 }
 
-.fire-trail {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  pointer-events: none;
-}
-
-.fire-circle {
-  position: fixed;
-  width: 8px;
-  height: 8px;
-  left: 50%;
-  top: 50%;
-  border-radius: 50%;
-  pointer-events: none;
-  background: radial-gradient(
-    circle,
-    #fff3a1 0%,
-    var(--color-gold) 24%,
-    var(--color-urgency) 56%,
-    var(--color-risk) 78%,
-    rgba(215, 38, 61, 0) 100%
-  );
-  box-shadow:
-    0 0 5px rgba(230, 184, 0, 0.7),
-    0 0 10px rgba(255, 107, 44, 0.42),
-    0 0 16px rgba(215, 38, 61, 0.22);
-  mix-blend-mode: screen;
-  will-change: left, top, transform, opacity;
-}
-
-@media (prefers-reduced-motion: reduce), (pointer: coarse) {
-  .fire-trail {
-    display: none;
-  }
-}
-
 button,
 input,
 select {
@@ -337,6 +300,7 @@ button:hover {
   z-index: 1;
   width: 100%;
   max-height: 100%;
+  image-rendering: pixelated;
   object-fit: contain;
   filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.38));
 }
